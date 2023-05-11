@@ -92,19 +92,21 @@ app.get('/generate-gif-by-order-id/:id', async (req, res) => {
         deviceScaleFactor: 1,
     });
 
-    await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/1`);
+    await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/1?origem=gif-service`);
 
-    await sleep(3000);
+    await page.waitForSelector('.three-loaded')
 
-    await page.focus('body');
-
-    await sleep(3000);
+    await sleep(10000);
 
     const dir = './uploads/' + id;
 
     !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
 
-    for (let i = 1; i <= 54; i++) {
+    for (let i = 1; i < 32; i++) {
+        await page.addScriptTag({ content: `moveCupPosition(${i})` })
+
+        await sleep(1000);
+
         await page.screenshot({
             type: 'png',
             path: `${dir}/${i}.png`,
@@ -115,8 +117,6 @@ app.get('/generate-gif-by-order-id/:id', async (req, res) => {
                 height
             }
         });
-
-        await sleep(1000);
     }
 
     await browser.close();
@@ -141,22 +141,24 @@ app.get('/generate-gif-by-order-id/:id', async (req, res) => {
     const gifPaths = imagePaths.filter(name => name.includes('png'));
 
     await (() => new Promise(resolve => {
-        gifPaths
-            .sort((a, b) => parseInt(a) - parseInt(b))
-            .forEach(async (imagePath, i) => {
-                const filePath = path.join(dir, imagePath);
-                const image = await loadImage(filePath);
-
-                ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-
-                encoder.addFrame(ctx);
-
-                if (i === (gifPaths.length - 1)) {
-                    encoder.finish();
-                    await sleep(1000);
-                    resolve(true);
-                }
-            })
+        for (let index = 1; index <= 3; index++) {
+            gifPaths
+                .sort((a, b) => parseInt(a) - parseInt(b))
+                .forEach(async (imagePath, i) => {
+                    const filePath = path.join(dir, imagePath);
+                    const image = await loadImage(filePath);
+    
+                    ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
+    
+                    encoder.addFrame(ctx);
+    
+                    if (i === (gifPaths.length - 1) && index == 3) {
+                        encoder.finish();
+                        await sleep(1000);
+                        resolve(true);
+                    }
+                })
+        }
     }))()
 
     res.download(gifPath, filename, err => {
