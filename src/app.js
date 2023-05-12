@@ -22,13 +22,15 @@ app.get('/', (_req, res) => {
 })
 
 app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
-    const gifPath = req.file.path
-    const filename = `${req.file.filename.replace('.gif', '')}.mp4`
-    const mp4Path = path.join('uploads/', filename)
+    const gifPath = req.file.path;
+    const filename = `${req.file.filename.replace('.gif', '')}.mp4`;
+    const mp4Path = path.join('uploads/', filename);
 
-    const { body: { width, height } } = req
+    const { body: { width, height, id_pedido = '' } } = req;
 
-    const scale = `${width || 750}:${height || 1334}` 
+    const scale = `${width || 750}:${height || 1334}`;
+
+    console.log('convert-gif-to-mp4', id_pedido, scale);
 
     const convert = async () => new Promise(resolve => {
         ffmpeg.setFfmpegPath(ffmpegPath)
@@ -69,6 +71,8 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
 
 app.get('/generate-gif-by-order-id/:id', async (req, res) => {
     const id = req.params?.id;
+
+    console.log('generate-gif-by-order-id', id);
 
     if (!id) {
         res.json({
