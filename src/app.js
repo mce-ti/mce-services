@@ -96,7 +96,7 @@ app.get('/generate-gif-by-order-id/:id', async (req, res) => {
 
     await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/1?origem=gif-service`);
 
-    await page.waitForSelector('.three-loaded', { timeout: 0 })
+    await page.waitForSelector('.three-loaded', { timeout: 60000 })
 
     await sleep(2000);
 
