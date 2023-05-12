@@ -26,7 +26,9 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     const filename = `${req.file.filename.replace('.gif', '')}.mp4`
     const mp4Path = path.join('uploads/', filename)
 
-    const { body: { scale = '750:1334' } } = req
+    const { body: { width = 750, height = 1334 } } = req
+
+    const scale = `${width}:${height}` 
 
     const convert = async () => new Promise(resolve => {
         ffmpeg.setFfmpegPath(ffmpegPath)
@@ -94,9 +96,9 @@ app.get('/generate-gif-by-order-id/:id', async (req, res) => {
 
     await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/1?origem=gif-service`);
 
-    await page.waitForSelector('.three-loaded')
+    await page.waitForSelector('.three-loaded', { timeout: 60 })
 
-    await sleep(10000);
+    await sleep(2000);
 
     const dir = './uploads/' + id;
 
