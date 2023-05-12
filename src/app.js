@@ -30,7 +30,7 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
 
     const scale = `${width || 750}:${height || 1334}`;
 
-    console.log('convert-gif-to-mp4', id_pedido, scale);
+    console.log('convert-gif-to-mp4', `id_pedido: ${id_pedido}`, `scale: ${scale}`);
 
     const convert = async () => new Promise(resolve => {
         ffmpeg.setFfmpegPath(ffmpegPath)
@@ -73,7 +73,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     const id = req.params?.id;
     const product = req.params?.product;
 
-    console.log('generate-gif-by-order-id', id);
+    console.log('generate-gif-by-order-id', `id_pedido: ${id}`, `id_produto: ${product}`);
 
     if (!id || !product) {
         res.sendStatus(403);
@@ -171,8 +171,8 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     res.download(gifPath, filename, err => {
         err
-            ? console.log('Error downloading file:', err)
-            : console.log('File downloaded successfully');
+            ? console.log(`Error downloading gif - id_pedido: ${id} id_produto: ${product}:`, err)
+            : console.log(`gif - id_pedido: ${id} id_produto: ${product} downloaded successfully`);
 
         rimraf(dir, () => {});
     })
