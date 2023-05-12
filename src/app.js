@@ -69,12 +69,14 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     })
 })
 
-app.get('/generate-gif-by-order-id/:id', async (req, res) => {
+app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     const id = req.params?.id;
+    const product = req.params?.product;
 
     console.log('generate-gif-by-order-id', id);
 
-    if (!id) {
+    if (!id || !product) {
+        res.sendStatus(403);
         res.json({
             status: false,
             message: "id is required"
@@ -98,7 +100,7 @@ app.get('/generate-gif-by-order-id/:id', async (req, res) => {
         deviceScaleFactor: 1,
     });
 
-    await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/1?origem=gif-service`);
+    await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service`);
 
     await page.waitForSelector('.three-loaded', { timeout: 0 })
 
