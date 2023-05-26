@@ -21,6 +21,19 @@ app.get('/', (_req, res) => {
     res.send('Server is running')
 })
 
+app.get('/download_lista_de_pacotes', (req, res) => {
+    const arquivoPath = './lista_de_pacotes.txt';
+    const nomeArquivo = 'lista_de_pacotes.txt';
+    
+      res.download(arquivoPath, nomeArquivo, (err) => {
+        if (err) {
+          console.error('Erro ao fazer o download:', err);
+        } else {
+          console.log('Download concluído com sucesso');
+        }
+      });
+})
+
 app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     const gifPath = req.file.path;
     const filename = `${req.file.filename.replace('.gif', '')}.mp4`;
