@@ -191,6 +191,45 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     })
 })
 
+app.get('/pdf/detalhes-pedido', async (req, res) => {
+    const id = req.query?.id;
+    const format = req.query?.format || 'a3';
+
+    if (!id) {
+        res.sendStatus(403);
+        res.json({
+            status: false,
+            message: "id is required"
+        });
+
+        return;
+    }
+
+    console.log('pdf-detalhes-pedido', `id_pedido: ${id}`);
+
+    const filename = `pdf-${id}.pdf`
+    const path = `./uploads/${filename}`
+
+    const browser = await puppeteer.launch({
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    await page.goto(`https://www.meucopoeco.com.br/site/baixarDetalhesPedido/${id}`);
+
+    await page.pdf({ path, format });
+
+    await browser.close();
+
+    res.download(path, filename, err => {
+        err
+            ? console.log(`Error downloading pdf detalhes pedido - id: ${id}:`, err)
+            : console.log(`pdf detalhes pedido - id: ${id}: downloaded successfully`);
+
+        fs.unlink(path, unlinkErr => {});
+    })
+})
 
 const port = process.env.PORT || 3000;
 
