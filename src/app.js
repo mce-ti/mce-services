@@ -213,17 +213,15 @@ app.get('/pdf/detalhes-pedido', async (req, res) => {
 })
 
 app.get('/pdf/orcamento-pedido', async (req, res) => {
-    const id = req.query?.id;
-    const format = req.query?.format || 'A3';
+    const id = req.query?.id || null;
+    const ip = req.query?.ip || null;
+    const cookie = req.query?.cookie || null;
 
-    if (!id) {
-        return res.status(403).json({
-            status: false,
-            message: "id is required"
-        });
+    if (!(id || ip || cookie)) {
+        return res.sendStatus(403)
     }
 
-    console.log('pdf-orcamento-pedido', `id_pedido: ${id}`);
+    console.log('pdf-orcamento', `id: ${id} ip: ${ip} cookie: ${cookie}`);
 
     const filename = `pdf-orcamento-${id}.pdf`
     const path = `./uploads/${filename}`
@@ -232,15 +230,21 @@ app.get('/pdf/orcamento-pedido', async (req, res) => {
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
+    const urlGoTo = id
+        ? `https://www.meucopoeco.com.br/site/baixarOrcamentoGrandeQuantidade/${id}`
+        : `https://www.meucopoeco.com.br/site/baixarOrcamentoNew?ip=${ip}&cookie=${cookie}`
+
+        console.log(urlGoTo)
+    
     const page = await browser.newPage();
 
-    await page.goto(`https://www.meucopoeco.com.br/site/baixarOrcamentoGrandeQuantidade/${id}`);
+    await page.goto(urlGoTo);
 
     await sleep(1000)
 
     await page.pdf({
         path,
-        format,
+        format: 'A3',
         printBackground: true,
         preferCSSPageSize: true,
         margin: {
