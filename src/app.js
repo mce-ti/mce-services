@@ -233,8 +233,6 @@ app.get('/pdf/orcamento-pedido', async (req, res) => {
     const urlGoTo = id
         ? `https://www.meucopoeco.com.br/site/baixarOrcamentoGrandeQuantidade/${id}`
         : `https://www.meucopoeco.com.br/site/baixarOrcamentoNew?ip=${ip}&cookie=${cookie}`
-
-        console.log(urlGoTo)
     
     const page = await browser.newPage();
 
@@ -259,8 +257,8 @@ app.get('/pdf/orcamento-pedido', async (req, res) => {
 
     res.download(path, filename, err => {
         err
-            ? console.log(`Error downloading pdf orcamento pedido - id: ${id}:`, err)
-            : console.log(`pdf orcamento pedido - id: ${id}: downloaded successfully`);
+            ? console.log(`Error downloading pdf orcamento id: ${id} ip: ${ip} cookie: ${cookie}`, err)
+            : console.log(`pdf orcamento id: ${id} ip: ${ip} cookie: ${cookie} - downloaded successfully`);
 
         fs.unlink(path, unlinkErr => { });
     })
