@@ -21,19 +21,6 @@ app.get('/', (_req, res) => {
     res.send('Server is running')
 })
 
-app.get('/download_lista_de_pacotes', (req, res) => {
-    const arquivoPath = './lista_de_pacotes.txt';
-    const nomeArquivo = 'lista_de_pacotes.txt';
-    
-      res.download(arquivoPath, nomeArquivo, (err) => {
-        if (err) {
-          console.error('Erro ao fazer o download:', err);
-        } else {
-          console.log('Download concluído com sucesso');
-        }
-      });
-})
-
 app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     const gifPath = req.file.path;
     const filename = `${req.file.filename.replace('.gif', '')}.mp4`;
@@ -89,13 +76,10 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     console.log('generate-gif-by-order-id', `id_pedido: ${id}`, `id_produto: ${product}`);
 
     if (!id || !product) {
-        res.sendStatus(403);
-        res.json({
+        return res.status(403).json({
             status: false,
             message: "id is required"
         });
-
-        return;
     }
 
     const width = 375;
@@ -168,11 +152,11 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
                 .forEach(async (imagePath, i) => {
                     const filePath = path.join(dir, imagePath);
                     const image = await loadImage(filePath);
-    
+
                     ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-    
+
                     encoder.addFrame(ctx);
-    
+
                     if (i === (gifPaths.length - 1) && index == 3) {
                         encoder.finish();
                         await sleep(1000);
@@ -187,7 +171,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
             ? console.log(`Error downloading gif - id_pedido: ${id} id_produto: ${product}:`, err)
             : console.log(`gif - id_pedido: ${id} id_produto: ${product} downloaded successfully`);
 
-        rimraf(dir, () => {});
+        rimraf(dir, () => { });
     })
 })
 
@@ -196,18 +180,15 @@ app.get('/pdf/detalhes-pedido', async (req, res) => {
     const format = req.query?.format || 'a3';
 
     if (!id) {
-        res.sendStatus(403);
-        res.json({
+        return res.status(403).json({
             status: false,
             message: "id is required"
         });
-
-        return;
     }
 
     console.log('pdf-detalhes-pedido', `id_pedido: ${id}`);
 
-    const filename = `pdf-${id}.pdf`
+    const filename = `pdf-detalhes-${id}.pdf`
     const path = `./uploads/${filename}`
 
     const browser = await puppeteer.launch({
@@ -227,7 +208,57 @@ app.get('/pdf/detalhes-pedido', async (req, res) => {
             ? console.log(`Error downloading pdf detalhes pedido - id: ${id}:`, err)
             : console.log(`pdf detalhes pedido - id: ${id}: downloaded successfully`);
 
-        fs.unlink(path, unlinkErr => {});
+        fs.unlink(path, unlinkErr => { });
+    })
+})
+
+app.get('/pdf/orcamento-pedido', async (req, res) => {
+    const id = req.query?.id;
+    const format = req.query?.format || 'A3';
+
+    if (!id) {
+        return res.status(403).json({
+            status: false,
+            message: "id is required"
+        });
+    }
+
+    console.log('pdf-orcamento-pedido', `id_pedido: ${id}`);
+
+    const filename = `pdf-orcamento-${id}.pdf`
+    const path = `./uploads/${filename}`
+
+    const browser = await puppeteer.launch({
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    await page.goto(`https://www.meucopoeco.com.br/site/baixarOrcamentoGrandeQuantidade/${id}`);
+
+    await sleep(1000)
+
+    await page.pdf({
+        path,
+        format,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: {
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+        }
+    });
+
+    await browser.close();
+
+    res.download(path, filename, err => {
+        err
+            ? console.log(`Error downloading pdf orcamento pedido - id: ${id}:`, err)
+            : console.log(`pdf orcamento pedido - id: ${id}: downloaded successfully`);
+
+        fs.unlink(path, unlinkErr => { });
     })
 })
 
