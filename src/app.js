@@ -12,6 +12,7 @@ const rimraf = require('rimraf');
 
 const app = express()
 app.use(cors())
+app.use(express.json())
 
 const upload = multer({ dest: 'uploads/' })
 
@@ -262,6 +263,58 @@ app.get('/pdf/orcamento-pedido', async (req, res) => {
 
         fs.unlink(path, unlinkErr => { });
     })
+})
+
+app.post('/generate-pdf', async (req, res) => {
+    const isDefined = value => typeof value !== 'undefined'
+
+    try {
+        const reqOpts = req.body.options || {}
+        const url = req.body.url
+    
+        const filename = `pdf-${new Date().getTime()}.pdf`
+        const path = `./uploads/${filename}`
+    
+        const options = { path }
+    
+        isDefined(reqOpts.displayHeaderFooter)  && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
+        isDefined(reqOpts.footerTemplate)       && (options['footerTemplate'] = reqOpts.footerTemplate);
+        isDefined(reqOpts.format)               && (options['format'] = reqOpts.format);
+        isDefined(reqOpts.headerTemplate)       && (options['headerTemplate'] = reqOpts.headerTemplate);
+        isDefined(reqOpts.height)               && (options['height'] = reqOpts.height);
+        isDefined(reqOpts.landscape)            && (options['landscape'] = reqOpts.landscape);
+        isDefined(reqOpts.omitBackground)       && (options['omitBackground'] = reqOpts.omitBackground);
+        isDefined(reqOpts.pageRanges)           && (options['pageRanges'] = reqOpts.pageRanges);
+        isDefined(reqOpts.preferCSSPageSize)    && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
+        isDefined(reqOpts.printBackground)      && (options['printBackground'] = reqOpts.printBackground);
+        isDefined(reqOpts.scale)                && (options['scale'] = reqOpts.scale);
+        isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
+        isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
+    
+        const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+        
+        const page = await browser.newPage();
+       
+        await page.goto(url);
+    
+        await sleep(1000);
+    
+        await page.pdf(options);
+    
+        await browser.close();
+    
+        return res.download(path, filename, err => {
+            const log = err ? ['Error downloading pdf', req.body, err] : ['Downloaded successfully', req.body];
+    
+            console.log(...log);
+    
+            fs.unlink(path, _unlinkErr => { });
+        })
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(403)
+    }
+
 })
 
 const port = process.env.PORT || 3000;
