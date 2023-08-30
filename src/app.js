@@ -74,6 +74,9 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     const id = req.params?.id;
     const product = req.params?.product;
 
+    const width = req.query?.width || 375;
+    const height = req.query?.height || 667;
+
     console.log('generate-gif-by-order-id', `id_pedido: ${id}`, `id_produto: ${product}`);
 
     if (!id || !product) {
@@ -82,9 +85,6 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
             message: "id is required"
         });
     }
-
-    const width = 375;
-    const height = 667;
 
     const browser = await puppeteer.launch({
         args: ['--no-sandbox', '--disable-setuid-sandbox']
