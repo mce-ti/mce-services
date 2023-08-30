@@ -74,10 +74,15 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     const id = req.params?.id;
     const product = req.params?.product;
 
-    const width = req.query?.width || 375;
-    const height = req.query?.height || 667;
+    const width = parseInt(req.query?.width || '0') || 375;
+    const height = parseInt(req.query?.height || '0') || 667;
 
-    console.log('generate-gif-by-order-id', `id_pedido: ${id}`, `id_produto: ${product}`);
+    console.log('generate-gif-by-order-id', {
+        id,
+        product,
+        width,
+        height
+    });
 
     if (!id || !product) {
         return res.status(403).json({
