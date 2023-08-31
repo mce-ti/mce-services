@@ -296,7 +296,7 @@ app.post('/generate-pdf', async (req, res) => {
         isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
         isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
     
-        const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+        const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=medium'] });
         
         const page = await browser.newPage();
        
