@@ -300,9 +300,11 @@ app.post('/generate-pdf', async (req, res) => {
         
         const page = await browser.newPage();
        
-        await page.goto(url, { waitUntil: 'networkidle0' });
-    
         await sleep(1000);
+        
+        await page.goto(url, { waitUntil: 'networkidle0' });
+        
+        await sleep(500);
     
         await page.pdf(options);
     
