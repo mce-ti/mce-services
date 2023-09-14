@@ -54,7 +54,6 @@ const puppeteer_minimal_args = [
 const puppeteer_launch_props = {
     args: puppeteer_minimal_args,
     userDataDir: './puppeteer_cache',
-    executablePath: '/usr/bin/chromium-browser',
     headless: 'new'
 };
 
