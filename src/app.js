@@ -49,11 +49,12 @@ const puppeteer_minimal_args = [
     '--password-store=basic',
     '--use-gl=swiftshader',
     '--use-mock-keychain',
+    '--use-gl=egl'
 ];
 
 const puppeteer_launch_props = {
     args: puppeteer_minimal_args,
-    userDataDir: './puppeteer_cache',
+    userDataDir: path.resolve(__dirname, './myUserDataDir'),
     headless: 'new'
 };
 
