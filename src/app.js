@@ -10,6 +10,53 @@ const cors = require('cors');
 const fs = require('fs');
 const rimraf = require('rimraf');
 
+const newInitTime = () => new Date().getTime();
+const getResultTime = (initTime = 0) => ((new Date().getTime() - initTime) / 1000).toFixed(2) + 's';
+
+const puppeteer_minimal_args = [
+    '--autoplay-policy=user-gesture-required',
+    '--disable-background-networking',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-breakpad',
+    '--disable-client-side-phishing-detection',
+    '--disable-component-update',
+    '--disable-default-apps',
+    '--disable-dev-shm-usage',
+    '--disable-domain-reliability',
+    '--disable-extensions',
+    '--disable-features=AudioServiceOutOfProcess',
+    '--disable-hang-monitor',
+    '--disable-ipc-flooding-protection',
+    '--disable-notifications',
+    '--disable-offer-store-unmasked-wallet-cards',
+    '--disable-popup-blocking',
+    '--disable-print-preview',
+    '--disable-prompt-on-repost',
+    '--disable-renderer-backgrounding',
+    '--disable-setuid-sandbox',
+    '--disable-speech-api',
+    '--disable-sync',
+    '--hide-scrollbars',
+    '--ignore-gpu-blacklist',
+    '--metrics-recording-only',
+    '--mute-audio',
+    '--no-default-browser-check',
+    '--no-first-run',
+    '--no-pings',
+    '--no-sandbox',
+    '--no-zygote',
+    '--password-store=basic',
+    '--use-gl=swiftshader',
+    '--use-mock-keychain',
+];
+
+const puppeteer_launch_props = {
+    args: puppeteer_minimal_args,
+    userDataDir: './puppeteer_cache',
+    headless: 'new'
+};
+
 const app = express()
 app.use(cors())
 app.use(express.json())
@@ -18,9 +65,7 @@ const upload = multer({ dest: 'uploads/' })
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-app.get('/', (_req, res) => {
-    res.send('Server is running')
-})
+app.get('/', (_req, res) => res.send('Server is running'));
 
 app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     const gifPath = req.file.path;
@@ -32,6 +77,8 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     const scale = `${width || 750}:${height || 1334}`;
 
     console.log('convert-gif-to-mp4', `id_pedido: ${id_pedido}`, `scale: ${scale}`);
+
+    const initTime = newInitTime();
 
     const convert = async () => new Promise(resolve => {
         ffmpeg.setFfmpegPath(ffmpegPath)
@@ -64,11 +111,11 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     res.download(filePath, filename, err => {
         err
             ? console.log('Error downloading file:', err)
-            : console.log('File downloaded successfully');
+            : console.log('File downloaded successfully in ' + getResultTime(initTime));
 
         fs.unlink(filePath, err => err && console.error(err));
     })
-})
+});
 
 app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     const id = req.params?.id;
@@ -91,9 +138,9 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         });
     }
 
-    const browser = await puppeteer.launch({
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    const initTime = newInitTime();
+
+    const browser = await puppeteer.launch(puppeteer_launch_props);
 
     const page = await browser.newPage();
 
@@ -107,7 +154,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     await page.waitForSelector('.three-loaded', { timeout: 0 })
 
-    await sleep(2000);
+    await sleep(1000);
 
     const dir = './uploads/' + id;
 
@@ -116,7 +163,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     for (let i = 1; i < 32; i++) {
         await page.addScriptTag({ content: `moveCupPosition(${i})` })
 
-        await sleep(1000);
+        await sleep(200);
 
         await page.screenshot({
             type: 'png',
@@ -175,103 +222,16 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     res.download(gifPath, filename, err => {
         err
             ? console.log(`Error downloading gif - id_pedido: ${id} id_produto: ${product}:`, err)
-            : console.log(`gif - id_pedido: ${id} id_produto: ${product} downloaded successfully`);
+            : console.log(`gif - id_pedido: ${id} id_produto: ${product} downloaded successfully in ` + getResultTime(initTime));
 
         rimraf(dir, () => { });
     })
-})
-
-app.get('/pdf/detalhes-pedido', async (req, res) => {
-    const id = req.query?.id;
-    const format = req.query?.format || 'a3';
-
-    if (!id) {
-        return res.status(403).json({
-            status: false,
-            message: "id is required"
-        });
-    }
-
-    console.log('pdf-detalhes-pedido', `id_pedido: ${id}`);
-
-    const filename = `pdf-detalhes-${id}.pdf`
-    const path = `./uploads/${filename}`
-
-    const browser = await puppeteer.launch({
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const page = await browser.newPage();
-
-    await page.goto(`https://www.meucopoeco.com.br/site/baixarDetalhesPedido/${id}`);
-
-    await page.pdf({ path, format });
-
-    await browser.close();
-
-    res.download(path, filename, err => {
-        err
-            ? console.log(`Error downloading pdf detalhes pedido - id: ${id}:`, err)
-            : console.log(`pdf detalhes pedido - id: ${id}: downloaded successfully`);
-
-        fs.unlink(path, unlinkErr => { });
-    })
-})
-
-app.get('/pdf/orcamento-pedido', async (req, res) => {
-    const id = req.query?.id || null;
-    const ip = req.query?.ip || null;
-    const cookie = req.query?.cookie || null;
-
-    if (!(id || ip || cookie)) {
-        return res.sendStatus(403)
-    }
-
-    console.log('pdf-orcamento', `id: ${id} ip: ${ip} cookie: ${cookie}`);
-
-    const filename = `pdf-orcamento-${id}.pdf`
-    const path = `./uploads/${filename}`
-
-    const browser = await puppeteer.launch({
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const urlGoTo = id
-        ? `https://www.meucopoeco.com.br/site/baixarOrcamentoGrandeQuantidade/${id}`
-        : `https://www.meucopoeco.com.br/site/baixarOrcamentoNew?ip=${ip}&cookie=${cookie}`
-    
-    const page = await browser.newPage();
-
-    await page.goto(urlGoTo);
-
-    await sleep(1000)
-
-    await page.pdf({
-        path,
-        format: 'A3',
-        printBackground: true,
-        preferCSSPageSize: true,
-        margin: {
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-        }
-    });
-
-    await browser.close();
-
-    res.download(path, filename, err => {
-        err
-            ? console.log(`Error downloading pdf orcamento id: ${id} ip: ${ip} cookie: ${cookie}`, err)
-            : console.log(`pdf orcamento id: ${id} ip: ${ip} cookie: ${cookie} - downloaded successfully`);
-
-        fs.unlink(path, unlinkErr => { });
-    })
-})
+});
 
 app.post('/generate-pdf', async (req, res) => {
     const isDefined = value => typeof value !== 'undefined'
+
+    const initTime = newInitTime();
 
     try {
         const reqOpts = req.body.options || {}
@@ -296,22 +256,22 @@ app.post('/generate-pdf', async (req, res) => {
         isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
         isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
     
-        const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=medium'] });
+        const browser = await puppeteer.launch(puppeteer_launch_props);
         
         const page = await browser.newPage();
        
-        await sleep(1000);
+        await sleep(250);
         
         await page.goto(url, { waitUntil: 'networkidle0' });
         
-        await sleep(500);
+        await sleep(250);
     
         await page.pdf(options);
     
         await browser.close();
     
         return res.download(path, filename, err => {
-            const log = err ? ['Error downloading pdf', req.body, err] : ['Downloaded successfully', req.body];
+            const log = err ? ['Error downloading pdf', req.body, err] : ['Downloaded successfully in ' + getResultTime(initTime), req.body];
     
             console.log(...log);
     
@@ -322,7 +282,7 @@ app.post('/generate-pdf', async (req, res) => {
         return res.sendStatus(403)
     }
 
-})
+});
 
 const port = process.env.PORT || 3000;
 
