@@ -49,7 +49,8 @@ const puppeteer_minimal_args = [
     '--password-store=basic',
     '--use-gl=swiftshader',
     '--use-mock-keychain',
-    '--use-gl=egl'
+    '--use-gl=egl',
+    '--disable-web-security'
 ];
 
 const puppeteer_launch_props = {
