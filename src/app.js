@@ -55,7 +55,8 @@ const puppeteer_minimal_args = [
 const puppeteer_launch_props = {
     args: puppeteer_minimal_args,
     userDataDir: path.resolve(__dirname, './myUserDataDir'),
-    headless: 'new'
+    headless: 'new',
+    ignoreHTTPSErrors: true
 };
 
 const app = express()
