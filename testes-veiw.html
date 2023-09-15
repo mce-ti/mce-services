@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TESTES</title>
+    <style>
+        main {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        main > div {
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            width: 100%;
+        }
+
+        button {
+            width: 150px;
+            min-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div>
+            <input id="input-generate-pdf" type="text" value="https://ecovasos.com/qero/personalize/html.php?id=8956&v=1236512&pdf=true" placeholder="url page">
+            <button id="btn-generate-pdf">GENERATE PDF</button>
+        </div>
+        
+        <div>
+            <input id="input-generate-gif-id" type="text" value="58078" placeholder="id_produto">
+            <input id="input-generate-gif-idx" type="text" value="1" placeholder="indice">
+            <input id="input-generate-gif-width" type="number" value="500" placeholder="width">
+            <input id="input-generate-gif-height" type="number" value="" placeholder="height">
+            <button id="btn-generate-gif">GENERATE GIF</button>
+        </div>
+    </main>
+
+    <script>
+        const btnGeneratePDF = document.getElementById('btn-generate-pdf');
+        const inputGeneratePDF = document.getElementById('input-generate-pdf');
+        
+        const btnGenerateGIF = document.getElementById('btn-generate-gif');
+        const inputGenerateGifId = document.getElementById('input-generate-gif-id');
+        const inputGenerateGifIdx = document.getElementById('input-generate-gif-idx');
+        const inputGenerateGifWidth = document.getElementById('input-generate-gif-width');
+        const inputGenerateGifHeight = document.getElementById('input-generate-gif-height');
+
+        btnGeneratePDF.addEventListener('click', async () => {
+            const bodyUrl = inputGeneratePDF.value;
+
+            const response = await fetch(`http://localhost:3000/generate-pdf`, {
+                method: 'post',
+                headers: new Headers({'content-type': 'application/json'}),
+                body: JSON.stringify({
+                    url: bodyUrl,
+                    options: { printBackground: true, preferCSSPageSize: true }
+                })
+            });
+        })
+
+        btnGenerateGIF.addEventListener('click', async () => {
+            const id = inputGenerateGifId.value;
+            const idx = inputGenerateGifIdx.value;
+            const width = inputGenerateGifWidth.value;
+            const height = inputGenerateGifHeight.value;
+
+            const response = await fetch(`http://localhost:3000/generate-gif-by-order-id/${id}/${idx}?width=${width}&height=${height}`);
+        })
+    </script>
+</body>
+
+</html>
