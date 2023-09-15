@@ -1,74 +1,24 @@
-const { createCanvas, loadImage } = require('canvas');
-const ffmpegPath = require('ffmpeg-static')
-const GIFEncoder = require('gifencoder');
-const ffmpeg = require('fluent-ffmpeg');
-const puppeteer = require('puppeteer');
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const cors = require('cors');
-const fs = require('fs');
-const rimraf = require('rimraf');
+const { createCanvas, loadImage }   = require('canvas');
+const ffmpegPath                    = require('ffmpeg-static');
+const GIFEncoder                    = require('gifencoder');
+const ffmpeg                        = require('fluent-ffmpeg');
+const puppeteer                     = require('puppeteer');
+const express                       = require('express');
+const multer                        = require('multer');
+const path                          = require('path');
+const cors                          = require('cors');
+const fs                            = require('fs');
+const rimraf                        = require('rimraf');
 
-const newInitTime = () => new Date().getTime();
-const getResultTime = (initTime = 0) => ((new Date().getTime() - initTime) / 1000).toFixed(2) + 's';
+const { puppeteer_launch_props, port } = require('./constants');
+const { newInitTime, getResultTime, sleep, isDefined, puppeteerDataDir } = require('./utils');
 
-const puppeteer_minimal_args = [
-    '--autoplay-policy=user-gesture-required',
-    '--disable-background-networking',
-    '--disable-background-timer-throttling',
-    '--disable-backgrounding-occluded-windows',
-    '--disable-breakpad',
-    '--disable-client-side-phishing-detection',
-    '--disable-component-update',
-    '--disable-default-apps',
-    '--disable-dev-shm-usage',
-    '--disable-domain-reliability',
-    '--disable-extensions',
-    '--disable-features=AudioServiceOutOfProcess',
-    '--disable-hang-monitor',
-    '--disable-ipc-flooding-protection',
-    '--disable-notifications',
-    '--disable-offer-store-unmasked-wallet-cards',
-    '--disable-popup-blocking',
-    '--disable-print-preview',
-    '--disable-prompt-on-repost',
-    '--disable-renderer-backgrounding',
-    '--disable-setuid-sandbox',
-    '--disable-speech-api',
-    '--disable-sync',
-    '--hide-scrollbars',
-    '--ignore-gpu-blacklist',
-    '--metrics-recording-only',
-    '--mute-audio',
-    '--no-default-browser-check',
-    '--no-first-run',
-    '--no-pings',
-    '--no-sandbox',
-    '--no-zygote',
-    '--password-store=basic',
-    '--use-gl=swiftshader',
-    '--use-mock-keychain',
-    '--use-gl=egl',
-    '--disable-web-security'
-];
+const upload = multer({ dest: 'uploads/' });
 
-const puppeteer_launch_props = {
-    args: puppeteer_minimal_args,
-    userDataDir: path.resolve(__dirname, './myUserDataDir'),
-    headless: 'new',
-    ignoreHTTPSErrors: true
-};
+const app = express();
 
-const app = express()
-app.use(cors())
-app.use(express.json())
-
-const upload = multer({ dest: 'uploads/' })
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-app.get('/', (_req, res) => res.send('Server is running'));
+app.use(cors());
+app.use(express.json());
 
 app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     const gifPath = req.file.path;
@@ -79,7 +29,7 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
 
     const scale = `${width || 750}:${height || 1334}`;
 
-    console.log('convert-gif-to-mp4', `id_pedido: ${id_pedido}`, `scale: ${scale}`);
+    console.log('convert-gif-to-mp4', { id_pedido, scale });
 
     const initTime = newInitTime();
 
@@ -113,26 +63,20 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
 
     res.download(filePath, filename, err => {
         err
-            ? console.log('Error downloading file:', err)
-            : console.log('File downloaded successfully in ' + getResultTime(initTime));
+            ? console.log('Error downloading MP4:', err)
+            : console.log(`MP4 ${id_pedido} downloaded successfully in ${getResultTime(initTime)}`);
 
         fs.unlink(filePath, err => err && console.error(err));
     })
 });
 
 app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
-    const id = req.params?.id;
-    const product = req.params?.product;
+    const { id, product } = req.params;
 
     const width = parseInt(req.query?.width || '0') || 375;
     const height = parseInt(req.query?.height || '0') || 667;
 
-    console.log('generate-gif-by-order-id', {
-        id,
-        product,
-        width,
-        height
-    });
+    console.log('generate-gif-by-order-id', { id, product, width, height });
 
     if (!id || !product) {
         return res.status(403).json({
@@ -143,7 +87,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     const initTime = newInitTime();
 
-    const browser = await puppeteer.launch(puppeteer_launch_props);
+    const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir: puppeteerDataDir('gif_data') });
 
     const page = await browser.newPage();
 
@@ -166,17 +110,12 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     for (let i = 1; i < 32; i++) {
         await page.addScriptTag({ content: `moveCupPosition(${i})` })
 
-        await sleep(200);
+        await sleep(100);
 
         await page.screenshot({
             type: 'png',
             path: `${dir}/${i}.png`,
-            clip: {
-                x: 0,
-                y: 0,
-                width,
-                height
-            }
+            clip: { x: 0, y: 0, width, height }
         });
     }
 
@@ -224,69 +163,76 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     res.download(gifPath, filename, err => {
         err
-            ? console.log(`Error downloading gif - id_pedido: ${id} id_produto: ${product}:`, err)
-            : console.log(`gif - id_pedido: ${id} id_produto: ${product} downloaded successfully in ` + getResultTime(initTime));
+            ? console.log(`Error downloading GIF ${id}-${product}`, err)
+            : console.log(`GIF ${id}-${product} downloaded successfully in ${getResultTime(initTime)}`);
 
         rimraf(dir, () => { });
     })
 });
 
 app.post('/generate-pdf', async (req, res) => {
-    const isDefined = value => typeof value !== 'undefined'
-
     const initTime = newInitTime();
 
-    try {
-        const reqOpts = req.body.options || {}
-        const url = req.body.url
-    
-        const filename = `pdf-${new Date().getTime()}.pdf`
-        const path = `./uploads/${filename}`
-    
-        const options = { path }
-    
-        isDefined(reqOpts.displayHeaderFooter)  && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
-        isDefined(reqOpts.footerTemplate)       && (options['footerTemplate'] = reqOpts.footerTemplate);
-        isDefined(reqOpts.format)               && (options['format'] = reqOpts.format);
-        isDefined(reqOpts.headerTemplate)       && (options['headerTemplate'] = reqOpts.headerTemplate);
-        isDefined(reqOpts.height)               && (options['height'] = reqOpts.height);
-        isDefined(reqOpts.landscape)            && (options['landscape'] = reqOpts.landscape);
-        isDefined(reqOpts.omitBackground)       && (options['omitBackground'] = reqOpts.omitBackground);
-        isDefined(reqOpts.pageRanges)           && (options['pageRanges'] = reqOpts.pageRanges);
-        isDefined(reqOpts.preferCSSPageSize)    && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
-        isDefined(reqOpts.printBackground)      && (options['printBackground'] = reqOpts.printBackground);
-        isDefined(reqOpts.scale)                && (options['scale'] = reqOpts.scale);
-        isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
-        isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
-    
-        const browser = await puppeteer.launch(puppeteer_launch_props);
-        
-        const page = await browser.newPage();
-       
-        await sleep(250);
-        
-        await page.goto(url, { waitUntil: 'networkidle0' });
-        
-        await sleep(250);
-    
-        await page.pdf(options);
-    
-        await browser.close();
-    
-        return res.download(path, filename, err => {
-            const log = err ? ['Error downloading pdf', req.body, err] : ['Downloaded successfully in ' + getResultTime(initTime), req.body];
-    
-            console.log(...log);
-    
-            fs.unlink(path, _unlinkErr => { });
-        })
-    } catch (error) {
-        console.log(error)
-        return res.sendStatus(403)
-    }
+    let tryProcess = true;
+    let timesToTry = 15;
+    let times = 0;
 
+    while (tryProcess) {
+        times++;
+
+        try {
+            const reqOpts = req.body.options || {}
+            const url = req.body.url
+        
+            const filename = `pdf-${new Date().getTime()}.pdf`
+            const path = `./uploads/${filename}`
+        
+            const options = { path }
+        
+            isDefined(reqOpts.displayHeaderFooter)  && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
+            isDefined(reqOpts.footerTemplate)       && (options['footerTemplate'] = reqOpts.footerTemplate);
+            isDefined(reqOpts.format)               && (options['format'] = reqOpts.format);
+            isDefined(reqOpts.headerTemplate)       && (options['headerTemplate'] = reqOpts.headerTemplate);
+            isDefined(reqOpts.height)               && (options['height'] = reqOpts.height);
+            isDefined(reqOpts.landscape)            && (options['landscape'] = reqOpts.landscape);
+            isDefined(reqOpts.omitBackground)       && (options['omitBackground'] = reqOpts.omitBackground);
+            isDefined(reqOpts.pageRanges)           && (options['pageRanges'] = reqOpts.pageRanges);
+            isDefined(reqOpts.preferCSSPageSize)    && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
+            isDefined(reqOpts.printBackground)      && (options['printBackground'] = reqOpts.printBackground);
+            isDefined(reqOpts.scale)                && (options['scale'] = reqOpts.scale);
+            isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
+            isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
+        
+            const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir: puppeteerDataDir('pdf_data') });
+
+            tryProcess = false;
+            
+            const page = await browser.newPage();
+            
+            await page.goto(url, { waitUntil: 'networkidle0' });
+            
+            await sleep(250);
+        
+            await page.pdf(options);
+        
+            await browser.close();
+        
+            return res.download(path, filename, err => {
+                const log = err ? ['Error downloading PDF', req.body, err] : [`PDF (${url}) Downloaded successfully in ${getResultTime(initTime)}`];
+        
+                console.log(...log);
+        
+                fs.unlink(path, _unlinkErr => { });
+            })
+        } catch (error) {
+            if (timesToTry > times) {
+                await sleep(1000);
+            } else {
+                console.log(error)
+                return res.sendStatus(403)
+            }
+        }
+    }    
 });
-
-const port = process.env.PORT || 3000;
 
 app.listen(port, () => console.log(`Server running on port ${port}`));
