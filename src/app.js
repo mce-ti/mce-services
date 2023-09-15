@@ -87,39 +87,44 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     const initTime = newInitTime();
 
-    const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir: puppeteerDataDir('gif_data') });
+    try {
+        const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir: puppeteerDataDir('gif_data') });
 
-    const page = await browser.newPage();
+        const page = await browser.newPage();
 
-    await page.setViewport({
-        width,
-        height,
-        deviceScaleFactor: 1,
-    });
-
-    await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service`);
-
-    await page.waitForSelector('.three-loaded', { timeout: 0 })
-
-    await sleep(1000);
-
-    const dir = './uploads/' + id;
-
-    !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
-
-    for (let i = 1; i < 32; i++) {
-        await page.addScriptTag({ content: `moveCupPosition(${i})` })
-
-        await sleep(100);
-
-        await page.screenshot({
-            type: 'png',
-            path: `${dir}/${i}.png`,
-            clip: { x: 0, y: 0, width, height }
+        await page.setViewport({
+            width,
+            height,
+            deviceScaleFactor: 1,
         });
-    }
 
-    await browser.close();
+        await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service`);
+
+        await page.waitForSelector('.three-loaded', { timeout: 0 })
+
+        await sleep(1000);
+
+        const dir = './uploads/' + id;
+
+        !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
+
+        for (let i = 1; i < 32; i++) {
+            await page.addScriptTag({ content: `moveCupPosition(${i})` })
+
+            await sleep(100);
+
+            await page.screenshot({
+                type: 'png',
+                path: `${dir}/${i}.png`,
+                clip: { x: 0, y: 0, width, height }
+            });
+        }
+
+        await browser.close();
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(403)
+    }
 
     // ---------------------------------------- \\
 
