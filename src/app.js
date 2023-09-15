@@ -121,58 +121,59 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         }
 
         await browser.close();
+        
+        // ---------------------------------------- \\
+    
+        const filename = `gif-${id}.gif`;
+        const gifPath = `${dir}/${filename}`;
+    
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+    
+        const encoder = new GIFEncoder(width, height);
+    
+        encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
+        encoder.start();
+        encoder.setRepeat(0);
+        encoder.setDelay(100);
+        encoder.setQuality(100);
+    
+        const imagePaths = fs.readdirSync(dir);
+        const gifPaths = imagePaths.filter(name => name.includes('png'));
+    
+        await (() => new Promise(resolve => {
+            for (let index = 1; index <= 3; index++) {
+                gifPaths
+                    .sort((a, b) => parseInt(a) - parseInt(b))
+                    .forEach(async (imagePath, i) => {
+                        const filePath = path.join(dir, imagePath);
+                        const image = await loadImage(filePath);
+    
+                        ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
+    
+                        encoder.addFrame(ctx);
+    
+                        if (i === (gifPaths.length - 1) && index == 3) {
+                            encoder.finish();
+                            await sleep(1000);
+                            resolve(true);
+                        }
+                    })
+            }
+        }))()
+    
+        res.download(gifPath, filename, err => {
+            err
+                ? console.log(`Error downloading GIF ${id}-${product}`, err)
+                : console.log(`GIF ${id}-${product} downloaded successfully in ${getResultTime(initTime)}`);
+    
+            rimraf(dir, () => { });
+        })
     } catch (error) {
         console.log(error)
         return res.sendStatus(403)
     }
 
-    // ---------------------------------------- \\
-
-    const filename = `gif-${id}.gif`;
-    const gifPath = `${dir}/${filename}`;
-
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-
-    const encoder = new GIFEncoder(width, height);
-
-    encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
-    encoder.start();
-    encoder.setRepeat(0);
-    encoder.setDelay(100);
-    encoder.setQuality(100);
-
-    const imagePaths = fs.readdirSync(dir);
-    const gifPaths = imagePaths.filter(name => name.includes('png'));
-
-    await (() => new Promise(resolve => {
-        for (let index = 1; index <= 3; index++) {
-            gifPaths
-                .sort((a, b) => parseInt(a) - parseInt(b))
-                .forEach(async (imagePath, i) => {
-                    const filePath = path.join(dir, imagePath);
-                    const image = await loadImage(filePath);
-
-                    ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-
-                    encoder.addFrame(ctx);
-
-                    if (i === (gifPaths.length - 1) && index == 3) {
-                        encoder.finish();
-                        await sleep(1000);
-                        resolve(true);
-                    }
-                })
-        }
-    }))()
-
-    res.download(gifPath, filename, err => {
-        err
-            ? console.log(`Error downloading GIF ${id}-${product}`, err)
-            : console.log(`GIF ${id}-${product} downloaded successfully in ${getResultTime(initTime)}`);
-
-        rimraf(dir, () => { });
-    })
 });
 
 app.post('/generate-pdf', async (req, res) => {
