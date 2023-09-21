@@ -176,6 +176,103 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
 });
 
+app.post('/generate-gif', async (req, res) => {
+    const {
+        url,
+        project,
+        width = 375,
+        height = 667,
+    } = req.body;
+
+    console.log('generate-gif', { width, height, url, project });
+
+    if (!url || !project) return res.status(403).json({
+        status: false,
+        message: "url or project is missing"
+    });
+
+    const initTime = newInitTime();
+
+    const userDataDir = puppeteerDataDir('gif_data_' + project)
+
+    try {
+        const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir });
+        const page = await browser.newPage();
+        await page.setViewport({ width, height, deviceScaleFactor: 1 });
+        await page.goto(url);
+        await page.waitForSelector('.three-loaded', { timeout: 0 });
+
+        const dir = './uploads/' + initTime;
+
+        !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
+        
+        for (let i = 1; i < 32; i++) {
+            await page.addScriptTag({ content: `moveCupPosition(${i})` })
+
+            await sleep(100);
+
+            await page.screenshot({
+                type: 'png',
+                path: `${dir}/${i}.png`,
+                clip: { x: 0, y: 0, width, height }
+            });
+        }
+
+        await browser.close();
+
+        // ---------------------------------------- \\
+
+        const filename = `gif-${initTime}.gif`;
+        const gifPath = `${dir}/${filename}`;
+
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+
+        const encoder = new GIFEncoder(width, height);
+    
+        encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
+        encoder.start();
+        encoder.setRepeat(0);
+        encoder.setDelay(100);
+        encoder.setQuality(100);
+
+        const imagePaths = fs.readdirSync(dir);
+        const gifPaths = imagePaths.filter(name => name.includes('png'));
+
+        await (() => new Promise(resolve => {
+            for (let index = 1; index <= 3; index++) {
+                gifPaths
+                    .sort((a, b) => parseInt(a) - parseInt(b))
+                    .forEach(async (imagePath, i) => {
+                        const filePath = path.join(dir, imagePath);
+                        const image = await loadImage(filePath);
+    
+                        ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
+    
+                        encoder.addFrame(ctx);
+    
+                        if (i === (gifPaths.length - 1) && index == 3) {
+                            encoder.finish();
+                            await sleep(1000);
+                            resolve(true);
+                        }
+                    })
+            }
+        }))();
+
+        res.download(gifPath, filename, err => {
+            err
+                ? console.log(`Error downloading GIF`, { width, height, url, project }, err)
+                : console.log(`GIF downloaded successfully in ${getResultTime(initTime)}`, { width, height, url, project });
+    
+            rimraf(dir, () => { });
+        })
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(403)
+    }
+})
+
 app.post('/generate-pdf', async (req, res) => {
     const initTime = newInitTime();
 

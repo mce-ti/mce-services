@@ -24,6 +24,14 @@
             width: 150px;
             min-width: 150px;
         }
+
+        .max-50 {
+            max-width: 50px
+        }
+        
+        .max-150 {
+            max-width: 150px;
+        }
     </style>
 </head>
 <body>
@@ -34,30 +42,32 @@
         </div>
         
         <div>
-            <input id="input-generate-gif-id" type="text" value="58078" placeholder="id_produto">
-            <input id="input-generate-gif-idx" type="text" value="1" placeholder="indice">
-            <input id="input-generate-gif-width" type="number" value="500" placeholder="width">
-            <input id="input-generate-gif-height" type="number" value="" placeholder="height">
+            <input id="input-generate-gif-url" type="text" value="https://ecovasos.com/qero/customizer/index.php?aprovacao=6701/artes/1694536352.png&tipo=copo&gif-service=true" placeholder="URL">
+            <input id="input-generate-gif-project" class="max-150" type="text" value="qero" placeholder="project: qero | mce">
+            <input id="input-generate-gif-width" class="max-50" type="number" value="500" placeholder="width">
+            <input id="input-generate-gif-height" class="max-50" type="number" value="667" placeholder="height">
             <button id="btn-generate-gif">GENERATE GIF</button>
         </div>
     </main>
 
+    <div id="results"></div>
+
     <script>
-        const btnGeneratePDF = document.getElementById('btn-generate-pdf');
-        const inputGeneratePDF = document.getElementById('input-generate-pdf');
+        const btnGeneratePDF    = document.getElementById('btn-generate-pdf');
+        const inputGeneratePDF  = document.getElementById('input-generate-pdf');
         
-        const btnGenerateGIF = document.getElementById('btn-generate-gif');
-        const inputGenerateGifId = document.getElementById('input-generate-gif-id');
-        const inputGenerateGifIdx = document.getElementById('input-generate-gif-idx');
-        const inputGenerateGifWidth = document.getElementById('input-generate-gif-width');
-        const inputGenerateGifHeight = document.getElementById('input-generate-gif-height');
+        const btnGenerateGIF            = document.getElementById('btn-generate-gif');
+        const inputGenerateGifUrl       = document.getElementById('input-generate-gif-url');
+        const inputGenerateGifProject   = document.getElementById('input-generate-gif-project');
+        const inputGenerateGifWidth     = document.getElementById('input-generate-gif-width');
+        const inputGenerateGifHeight    = document.getElementById('input-generate-gif-height');
 
         btnGeneratePDF.addEventListener('click', async () => {
             const bodyUrl = inputGeneratePDF.value;
 
             const response = await fetch(`http://localhost:3000/generate-pdf`, {
                 method: 'post',
-                headers: new Headers({'content-type': 'application/json'}),
+                headers: new Headers({ 'content-type': 'application/json' }),
                 body: JSON.stringify({
                     url: bodyUrl,
                     options: { printBackground: true, preferCSSPageSize: true }
@@ -66,12 +76,27 @@
         })
 
         btnGenerateGIF.addEventListener('click', async () => {
-            const id = inputGenerateGifId.value;
-            const idx = inputGenerateGifIdx.value;
-            const width = inputGenerateGifWidth.value;
-            const height = inputGenerateGifHeight.value;
+            const url       = inputGenerateGifUrl.value;
+            const project   = inputGenerateGifProject.value;
+            const width     = parseInt(inputGenerateGifWidth.value);
+            const height    = parseInt(inputGenerateGifHeight.value);
 
-            const response = await fetch(`http://localhost:3000/generate-gif-by-order-id/${id}/${idx}?width=${width}&height=${height}`);
+            const response = await fetch(`http://localhost:3000/generate-gif`, {
+                method: 'post',
+                headers: new Headers({ 'content-type': 'application/json' }),
+                body: JSON.stringify({ url, project, width, height })
+            });
+
+            const blob = await response.blob();
+
+            const blobUrl = window.URL.createObjectURL(blob);
+            const img = document.createElement('img');
+            img.src = blobUrl;
+            img.style.height = (height / 2) + 'px';
+            img.style.width = (width / 2) + 'px';
+
+            document.getElementById('results').appendChild(img);
+
         })
     </script>
 </body>
