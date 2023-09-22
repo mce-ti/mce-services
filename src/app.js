@@ -21,53 +21,61 @@ app.use(cors());
 app.use(express.json());
 
 app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
-    const gifPath = req.file.path;
-    const filename = `${req.file.filename.replace('.gif', '')}.mp4`;
-    const mp4Path = path.join('uploads/', filename);
+    try {
+        const gifPath = req.file.path;
+        const filename = `${req.file.filename.replace('.gif', '')}.mp4`;
+        const mp4Path = path.join('uploads/', filename);
 
-    const { body: { width, height, id_pedido = '' } } = req;
+        const { body: { width, height, id_pedido = '' } } = req;
 
-    const scale = `${width || 750}:${height || 1334}`;
+        const scale = `${width || 750}:${height || 1334}`;
 
-    console.log('convert-gif-to-mp4', { id_pedido, scale });
+        console.log('convert-gif-to-mp4', { id_pedido, scale });
 
-    const initTime = newInitTime();
+        const initTime = newInitTime();
 
-    const convert = async () => new Promise(resolve => {
-        ffmpeg.setFfmpegPath(ffmpegPath)
-        ffmpeg(gifPath)
-            .output(mp4Path)
-            .videoCodec('libx264')
-            .audioCodec('aac')
-            .outputOptions([
-                '-movflags faststart',
-                '-profile:v baseline',
-                '-level 3.0',
-                '-pix_fmt yuv420p',
-                '-vf scale=' + scale
-            ])
-            .on('end', () => {
-                fs.unlink(gifPath, err => err && console.error(err));
-                resolve(mp4Path);
-            })
-            .on('error', (err) => {
-                console.error(err);
-                resolve();
-            })
-            .run();
-    })
+        const convert = async () => new Promise(resolve => {
+            ffmpeg.setFfmpegPath(ffmpegPath)
+            ffmpeg(gifPath)
+                .output(mp4Path)
+                .videoCodec('libx264')
+                .audioCodec('aac')
+                .outputOptions([
+                    '-movflags faststart',
+                    '-profile:v baseline',
+                    '-level 3.0',
+                    '-pix_fmt yuv420p',
+                    '-vf scale=' + scale
+                ])
+                .on('end', () => {
+                    fs.unlink(gifPath, err => err && console.error(err));
+                    resolve(mp4Path);
+                })
+                .on('error', (err) => {
+                    console.error(err);
+                    resolve();
+                })
+                .run();
+        })
 
-    await convert();
+        await convert();
 
-    const filePath = `./uploads/${filename}`;
+        const filePath = `./uploads/${filename}`;
 
-    res.download(filePath, filename, err => {
-        err
-            ? console.log('Error downloading MP4:', err)
-            : console.log(`MP4 ${id_pedido} downloaded successfully in ${getResultTime(initTime)}`);
+        res.download(filePath, filename, err => {
+            err
+                ? console.log('Error downloading MP4:', err)
+                : console.log(`MP4 ${id_pedido} downloaded successfully in ${getResultTime(initTime)}`);
 
-        fs.unlink(filePath, err => err && console.error(err));
-    })
+            fs.unlink(filePath, err => err && console.error(err));
+        })
+    } catch (error) {
+        console.log(error)
+        return res.status(403).json({
+          status: false,
+          message: "id is required"
+        })
+    }
 });
 
 app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
