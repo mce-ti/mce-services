@@ -285,7 +285,7 @@ app.post('/generate-pdf', async (req, res) => {
     const initTime = newInitTime();
 
     let tryProcess = true;
-    let timesToTry = 15;
+    let timesToTry = 30;
     let times = 0;
 
     while (tryProcess) {
