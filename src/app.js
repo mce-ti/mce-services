@@ -339,6 +339,7 @@ app.post('/generate-pdf', async (req, res) => {
             if (timesToTry > times) {
                 await sleep(1000);
             } else {
+                tryProcess = false;
                 console.log(error)
                 return res.sendStatus(403)
             }
