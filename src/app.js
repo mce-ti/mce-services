@@ -284,67 +284,51 @@ app.post('/generate-gif', async (req, res) => {
 app.post('/generate-pdf', async (req, res) => {
     const initTime = newInitTime();
 
-    let tryProcess = true;
-    let timesToTry = 30;
-    let times = 0;
-
-    while (tryProcess) {
-        times++;
-
-        try {
-            const reqOpts = req.body.options || {}
-            const url = req.body.url
+    try {
+        const reqOpts = req.body.options || {}
+        const url = req.body.url
+    
+        const filename = `pdf-${new Date().getTime()}.pdf`
+        const path = `./uploads/${filename}`
+    
+        const options = { path }
+    
+        isDefined(reqOpts.displayHeaderFooter)  && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
+        isDefined(reqOpts.footerTemplate)       && (options['footerTemplate'] = reqOpts.footerTemplate);
+        isDefined(reqOpts.format)               && (options['format'] = reqOpts.format);
+        isDefined(reqOpts.headerTemplate)       && (options['headerTemplate'] = reqOpts.headerTemplate);
+        isDefined(reqOpts.height)               && (options['height'] = reqOpts.height);
+        isDefined(reqOpts.landscape)            && (options['landscape'] = reqOpts.landscape);
+        isDefined(reqOpts.omitBackground)       && (options['omitBackground'] = reqOpts.omitBackground);
+        isDefined(reqOpts.pageRanges)           && (options['pageRanges'] = reqOpts.pageRanges);
+        isDefined(reqOpts.preferCSSPageSize)    && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
+        isDefined(reqOpts.printBackground)      && (options['printBackground'] = reqOpts.printBackground);
+        isDefined(reqOpts.scale)                && (options['scale'] = reqOpts.scale);
+        isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
+        isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
+    
+        const browser = await puppeteer.launch({ ...puppeteer_launch_props });
         
-            const filename = `pdf-${new Date().getTime()}.pdf`
-            const path = `./uploads/${filename}`
+        const page = await browser.newPage();
         
-            const options = { path }
+        await page.goto(url, { waitUntil: 'networkidle0' });
         
-            isDefined(reqOpts.displayHeaderFooter)  && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
-            isDefined(reqOpts.footerTemplate)       && (options['footerTemplate'] = reqOpts.footerTemplate);
-            isDefined(reqOpts.format)               && (options['format'] = reqOpts.format);
-            isDefined(reqOpts.headerTemplate)       && (options['headerTemplate'] = reqOpts.headerTemplate);
-            isDefined(reqOpts.height)               && (options['height'] = reqOpts.height);
-            isDefined(reqOpts.landscape)            && (options['landscape'] = reqOpts.landscape);
-            isDefined(reqOpts.omitBackground)       && (options['omitBackground'] = reqOpts.omitBackground);
-            isDefined(reqOpts.pageRanges)           && (options['pageRanges'] = reqOpts.pageRanges);
-            isDefined(reqOpts.preferCSSPageSize)    && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
-            isDefined(reqOpts.printBackground)      && (options['printBackground'] = reqOpts.printBackground);
-            isDefined(reqOpts.scale)                && (options['scale'] = reqOpts.scale);
-            isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
-            isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
-        
-            const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir: puppeteerDataDir('pdf_data') });
-
-            tryProcess = false;
-            
-            const page = await browser.newPage();
-            
-            await page.goto(url, { waitUntil: 'networkidle0' });
-            
-            await sleep(250);
-        
-            await page.pdf(options);
-        
-            await browser.close();
-        
-            return res.download(path, filename, err => {
-                const log = err ? ['Error downloading PDF', req.body, err] : [`PDF (${url}) Downloaded successfully in ${getResultTime(initTime)}`];
-        
-                console.log(...log);
-        
-                fs.unlink(path, _unlinkErr => { });
-            })
-        } catch (error) {
-            if (timesToTry > times) {
-                await sleep(1000);
-            } else {
-                tryProcess = false;
-                console.log(error)
-                return res.sendStatus(403)
-            }
-        }
-    }    
+        await sleep(250);
+    
+        await page.pdf(options);
+    
+        await browser.close();
+    
+        return res.download(path, filename, err => {
+            const log = err ? ['Error downloading PDF', req.body, err] : [`PDF (${url}) Downloaded successfully in ${getResultTime(initTime)}`];
+    
+            console.log(...log);
+    
+            fs.unlink(path, _unlinkErr => { });
+        })
+    } catch (error) {
+        return res.sendStatus(403)
+    }
 });
 
 app.listen(port, () => console.log(`Server running on port ${port}`));
