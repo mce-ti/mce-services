@@ -46,7 +46,7 @@ const puppeteer_minimal_args = [
 
 const puppeteer_launch_props = {
     args: puppeteer_minimal_args,
-    headless: true,
+    headless: 'new',
     executablePath: puppeteer_executable_path,
     ignoreHTTPSErrors: true
 }
