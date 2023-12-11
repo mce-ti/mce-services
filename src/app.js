@@ -289,6 +289,7 @@ app.post('/generate-pdf', async (req, res) => {
     try {
         const reqOpts = req.body.options || {}
         const url = req.body.url
+        const timeSleep = req.body?.sleep || 250
     
         const filename = `pdf-${new Date().getTime()}.pdf`
         const path = `./uploads/${filename}`
@@ -315,7 +316,7 @@ app.post('/generate-pdf', async (req, res) => {
         
         await page.goto(url, { waitUntil: 'networkidle0' });
         
-        await sleep(250);
+        await sleep(timeSleep);
     
         await page.pdf(options);
     
