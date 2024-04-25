@@ -9,6 +9,8 @@ const path                          = require('path');
 const cors                          = require('cors');
 const fs                            = require('fs');
 const rimraf                        = require('rimraf');
+const db                            = require('./db');
+const PedidosModel                  = require('./models/pedidosModel');
 
 const { puppeteer_launch_props, port } = require('./constants');
 const { newInitTime, getResultTime, sleep, isDefined, puppeteerDataDir } = require('./utils');
@@ -331,6 +333,22 @@ app.post('/generate-pdf', async (req, res) => {
         })
     } catch (error) {
         return res.sendStatus(403)
+    }
+});
+
+app.post('/logPedidos', async (req, res) => {
+
+    console.log(req.body);
+    
+    try {
+        const { data, origem, id_usuario, dataHora } = req.body;
+
+        const logPedido = new PedidosModel({ data, origem, id_usuario, dataHora });
+
+        await logPedido.save();
+        res.status(201).json(logPedido);
+    } catch (error) {
+        res.status(500).json({ error: error.message })
     }
 });
 
