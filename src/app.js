@@ -341,9 +341,9 @@ app.post('/logPedidos', async (req, res) => {
     console.log(req.body);
     
     try {
-        const { data, origem, id_usuario, dataHora } = req.body;
+        const { data, origem, id_usuario, dataHora, id_pedido } = req.body;
 
-        const logPedido = new PedidosModel({ data, origem, id_usuario, dataHora });
+        const logPedido = new PedidosModel({ data, origem, id_usuario, dataHora, id_pedido });
 
         await logPedido.save();
         res.status(201).json(logPedido);

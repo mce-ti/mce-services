@@ -5,6 +5,7 @@ const PedidosModelSchema = new mongoose.Schema({
     origem: { type: String, required: true },
     id_usuario: { type: Number, required: true },
     dataHora: { type: String, required: true },
+    id_pedido: { type: Number, required: true },
 });
 
 const PedidosModel = mongoose.model('pedidos_logs', PedidosModelSchema);
