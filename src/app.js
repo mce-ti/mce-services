@@ -337,9 +337,6 @@ app.post('/generate-pdf', async (req, res) => {
 });
 
 app.post('/logPedidos', async (req, res) => {
-
-    console.log(req.body);
-    
     try {
         const { data, origem, id_usuario, dataHora, id_pedido } = req.body;
 
@@ -347,6 +344,8 @@ app.post('/logPedidos', async (req, res) => {
 
         await logPedido.save();
         res.status(201).json(logPedido);
+
+        console.log('LOG: Pedido #' + id_pedido + 'registrado.');
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
