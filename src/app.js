@@ -11,9 +11,11 @@ const fs                            = require('fs');
 const rimraf                        = require('rimraf');
 const db                            = require('./db');
 const PedidosModel                  = require('./models/pedidosModel');
+const FinanceiroModel               = require('./models/financeiroModel');
 
 const { puppeteer_launch_props, port } = require('./constants');
 const { newInitTime, getResultTime, sleep, isDefined, puppeteerDataDir } = require('./utils');
+
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -346,6 +348,21 @@ app.post('/logPedidos', async (req, res) => {
         res.status(201).json(logPedido);
 
         console.log('LOG: Pedido #' + id_pedido + ' registrado.');
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+});
+
+app.post('/logFinanceiro', async (req, res) => {
+    try {
+        const { data, origem, id_usuario, dataHora, id_pedido, id } = req.body;
+
+        const logFinanceiro = new FinanceiroModel({ data, origem, id_usuario, dataHora, id_pedido, id });
+
+        await logFinanceiro.save();
+        res.status(201).json(logFinanceiro);
+
+        console.log('LOG: Registro alterado no Financeiro - Pedido #' + id_pedido + '.');
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
