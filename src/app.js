@@ -362,7 +362,11 @@ app.post('/logFinanceiro', async (req, res) => {
         await logFinanceiro.save();
         res.status(201).json(logFinanceiro);
 
-        console.log('LOG: Registro alterado no Financeiro - Pedido #' + id_pedido + '.');
+        if(id_pedido) {
+            console.log('LOG: Registro alterado no Financeiro - Pedido #' + id_pedido + '.');
+        } else {
+            console.log('LOG: Registro alterado no Financeiro - Registro com ID #' + id + '.');
+        }
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
