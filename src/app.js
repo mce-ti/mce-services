@@ -150,7 +150,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         encoder.start();
         encoder.setRepeat(0);
         encoder.setDelay(100);
-        encoder.setQuality(100);
+        encoder.setQuality(1);
     
         const imagePaths = fs.readdirSync(dir);
         const gifPaths = imagePaths.filter(name => name.includes('png'));
@@ -187,7 +187,6 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         console.log(error)
         return res.sendStatus(403)
     }
-
 });
 
 app.post('/generate-gif', async (req, res) => {
