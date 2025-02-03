@@ -247,7 +247,7 @@ app.post('/generate-gif', async (req, res) => {
         encoder.start();
         encoder.setRepeat(0);
         encoder.setDelay(100);
-        encoder.setQuality(1);
+        encoder.setQuality(100);
 
         const imagePaths = fs.readdirSync(dir);
         const gifPaths = imagePaths.filter(name => name.includes('png'));
