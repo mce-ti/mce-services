@@ -212,7 +212,7 @@ app.post('/generate-gif', async (req, res) => {
         const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir });
         const page = await browser.newPage();
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
-        await page.goto(url);
+        await page.goto(url, { timeout: 60000, waitUntil: 'networkidle2' });
         await page.waitForSelector('.three-loaded', { timeout: 0 });
 
         const dir = './uploads/' + initTime;
