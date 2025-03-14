@@ -212,11 +212,7 @@ app.post('/generate-gif', async (req, res) => {
         const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir });
         const page = await browser.newPage();
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36');
-        await page.evaluateOnNewDocument(() => {
-            Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        });
-        await page.goto(url, { timeout: 60000, waitUntil: 'networkidle2' });
+        await page.goto(url);
         await page.waitForSelector('.three-loaded', { timeout: 0 });
 
         const dir = './uploads/' + initTime;
