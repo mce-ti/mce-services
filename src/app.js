@@ -286,9 +286,7 @@ app.post('/generate-gif', async (req, res) => {
     }
 })
 
-app.post('/generate-pdf', async (req, res) => {
-    res.setTimeout(30000);
-    
+app.post('/generate-pdf', async (req, res) => {    
     const initTime = newInitTime();
 
     try {
