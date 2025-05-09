@@ -335,8 +335,9 @@ app.post('/generate-pdf', async (req, res) => {
     } catch (error) {
         return res.sendStatus(403)
     } finally {
-        if (browser) await browser.close();
-        fs.existsSync(path) && fs.unlink(path, () => {});
+        console.log(browser)
+        // if (browser) await browser.close();
+        // fs.existsSync(path) && fs.unlink(path, () => {});
     }
 });
 
