@@ -286,7 +286,7 @@ app.post('/generate-gif', async (req, res) => {
     }
 })
 
-app.post('/generate-pdf', async (req, res) => {    
+app.post('/generate-pdf', async (req, res) => {
     const initTime = newInitTime();
 
     try {
@@ -334,10 +334,6 @@ app.post('/generate-pdf', async (req, res) => {
         })
     } catch (error) {
         return res.sendStatus(403)
-    } finally {
-        console.log(browser)
-        // if (browser) await browser.close();
-        // fs.existsSync(path) && fs.unlink(path, () => {});
     }
 });
 
