@@ -287,6 +287,8 @@ app.post('/generate-gif', async (req, res) => {
 })
 
 app.post('/generate-pdf', async (req, res) => {
+    res.setTimeout(30000);
+    
     const initTime = newInitTime();
 
     try {
@@ -317,7 +319,7 @@ app.post('/generate-pdf', async (req, res) => {
         
         const page = await browser.newPage();
         
-        await page.goto(url, { waitUntil: 'networkidle0' });
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 15000 });
         
         await sleep(timeSleep);
     
@@ -334,6 +336,9 @@ app.post('/generate-pdf', async (req, res) => {
         })
     } catch (error) {
         return res.sendStatus(403)
+    } finally {
+        if (browser) await browser.close();
+        fs.existsSync(path) && fs.unlink(path, () => {});
     }
 });
 
