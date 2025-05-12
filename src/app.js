@@ -21,7 +21,6 @@ const upload = multer({ dest: 'uploads/' });
 
 const app = express();
 
-// teste commit
 
 app.use(cors());
 app.use(express.json());
@@ -208,8 +207,10 @@ app.post('/generate-gif', async (req, res) => {
 
     const userDataDir = puppeteerDataDir('gif_data_' + project)
 
+    let browser = null;
+
     try {
-        const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir });
+        browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir });
         const page = await browser.newPage();
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
         await page.goto(url);
@@ -283,11 +284,15 @@ app.post('/generate-gif', async (req, res) => {
     } catch (error) {
         console.log(error)
         return res.sendStatus(403)
+    } finally {
+        if(browser) browser.close();
     }
 })
 
 app.post('/generate-pdf', async (req, res) => {
     const initTime = newInitTime();
+
+    let browser = null;
 
     try {
         const reqOpts = req.body.options || {}
@@ -313,11 +318,11 @@ app.post('/generate-pdf', async (req, res) => {
         isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
         isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
     
-        const browser = await puppeteer.launch({ ...puppeteer_launch_props });
+        browser = await puppeteer.launch({ ...puppeteer_launch_props });
         
         const page = await browser.newPage();
         
-        await page.goto(url, { waitUntil: 'networkidle0' });
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 15000});
         
         await sleep(timeSleep);
     
@@ -334,6 +339,8 @@ app.post('/generate-pdf', async (req, res) => {
         })
     } catch (error) {
         return res.sendStatus(403)
+    } finally {
+        if(browser) browser.close();
     }
 });
 
