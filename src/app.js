@@ -101,8 +101,10 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     const initTime = newInitTime();
 
+    const uniqueDir = puppeteerDataDir(`gif_data_${id}_${Date.now()}`);
+
     try {
-        const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir: puppeteerDataDir('gif_data') });
+        const browser = await puppeteer.launch({ ...puppeteer_launch_props, userDataDir: uniqueDir });
 
         const page = await browser.newPage();
 
