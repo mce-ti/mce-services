@@ -1,0 +1,7 @@
+{
+  "ignore": [
+    "uploads/*",
+    "gif_data/*",
+    "fixtures/*"
+  ]
+}

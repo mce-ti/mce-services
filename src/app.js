@@ -12,6 +12,7 @@ const rimraf                        = require('rimraf');
 const db                            = require('./db');
 const PedidosModel                  = require('./models/pedidosModel');
 const FinanceiroModel               = require('./models/financeiroModel');
+const { processarJobCalco }         = require('./processarJobCalco');
 
 const { puppeteer_launch_props, port } = require('./constants');
 const { newInitTime, getResultTime, sleep, isDefined, puppeteerDataDir } = require('./utils');
@@ -375,6 +376,44 @@ app.post('/logFinanceiro', async (req, res) => {
         }
     } catch (error) {
         res.status(500).json({ error: error.message })
+    }
+});
+
+app.post('/api/gerar-calco', async (req, res) => {
+    try {
+        const { url_arte, id_pedido, index, id_arte, webhook_url, modo_render } = req.body;
+
+        if (!id_arte || !url_arte) {
+            return res.status(400).json({
+                status: false,
+                message: 'Dados incompletos. Faltando id_arte ou url_arte.'
+            });
+        }
+
+        console.log(`API: Iniciando geração direta para arte ${id_arte} | Modo: ${modo_render}`);
+
+        const payload = {
+            url_arte,
+            id_arte,
+            id_pedido,
+            index,
+            webhook_url,
+            modo_render: modo_render || 'translucido_branco'
+        };
+        
+        processarJobCalco(payload)
+            .then(() => console.log(`Sucesso no processamento direto: ${id_arte}`))
+            .catch(err => console.error(`Erro no processamento direto ${id_arte}:`, err));
+
+        // Responde imediatamente
+        return res.json({
+            status: true,
+            message: 'Processamento iniciado imediatamente (sem fila)'
+        });
+
+    } catch (error) {
+        console.error('Erro no endpoint:', error);
+        return res.status(500).json({ status: false, error: 'Erro interno' });
     }
 });
 
