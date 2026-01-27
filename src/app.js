@@ -92,39 +92,37 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     console.log('generate-gif-by-order-id', { id, product });
 
     const initTime = newInitTime();
-    const uniqueDir = puppeteerDataDir(`gif_data_${id}}`);
+    // Corrigi um pequeno erro de digitação no seu código anterior (tinha duas chaves }})
+    const uniqueDir = puppeteerDataDir(`gif_data_${id}_${Date.now()}`);
     let browser = null;
 
     try {
+        // 1. LAUNCH "LEVE" (IGUAL AO DA QERO ECOVASOS)
+        // Removemos os argumentos de SwiftShader que estavam causando o crash (SIGTERM)
         browser = await puppeteer.launch({ 
             ...puppeteer_launch_props, 
             userDataDir: uniqueDir,
             headless: "new",
-            protocolTimeout: 180000,
-            // --- ESSES ARGUMENTOS SÃO OBRIGATÓRIOS PARA SERVIDORES SEM GPU ---
+            protocolTimeout: 180000, 
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                // Força o Chrome a usar a CPU para desenhar o 3D (SwiftShader)
-                '--use-gl=swiftshader',
-                '--enable-webgl',
-                '--ignore-gpu-blocklist', 
-                '--hide-scrollbars',
-                '--mute-audio'
+                // Removemos --use-gl=swiftshader e outros que pesam na CPU
             ]
         });
 
         const page = await browser.newPage();
 
-        // --- PREVENÇÃO DE ERRO DE JAVASCRIPT ---
-        // Se o site ainda tiver o código velho do Handlers, isso conserta silenciosamente.
+        // 2. O "CURATIVO" (ESSENCIAL PARA O MEU COPO ECO)
+        // Mantemos isso pois é o que conserta o erro "Handlers.get has been removed"
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(window, 'THREE', {
                 get() { return this._THREE; },
                 set(val) {
                     this._THREE = val;
                     if (val && val.Loader && !val.Loader.Handlers) {
+                        // Recria a função antiga que o site busca
                         val.Loader.Handlers = {
                             get: (regex) => val.DefaultLoadingManager.getHandler(regex),
                             add: (regex, loader) => val.DefaultLoadingManager.addHandler(regex, loader)
@@ -134,7 +132,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
             });
         });
 
-        // Debug para garantir
+        // Debug simples
         page.on('console', msg => {
             const txt = msg.text();
             if (txt.includes('Error') || txt.includes('WebGL')) console.log('BROWSER LOG:', txt);
@@ -142,30 +140,26 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
 
-        // Adicionei um parametro de tempo para evitar Cache
+        // Navegação com timestamp para evitar cache
         await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
             waitUntil: 'networkidle0', 
             timeout: 90000
         });
 
-        console.log('Esperando o 3D carregar...');
-        // Com o SwiftShader, o loading pode demorar uns 2-3 segundos a mais, por isso o timeout seguro
         await page.waitForSelector('.three-loaded', { timeout: 60000 });
-        console.log('SUCESSO: 3D Carregado!');
 
-        await sleep(2000); // Pausa para renderizar o primeiro frame
+        await sleep(2000); 
 
         const dir = './uploads/' + id;
         !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
 
+        // Loop de capturas
         for (let i = 1; i < 32; i++) {
-            // Verifica segurança
             const canRun = await page.evaluate(() => typeof window.moveCupPosition === 'function');
             if (canRun) {
                 await page.addScriptTag({ content: `moveCupPosition(${i})` });
             }
             
-            // Aumentei o sleep levemente pois renderizar via CPU é mais lento que GPU
             await sleep(150); 
 
             await page.screenshot({
@@ -179,7 +173,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         await browser.close();
         browser = null;
 
-        // --- SEU CÓDIGO DE GIF ORIGINAL ---
+        // --- GERAÇÃO DO GIF ---
         const filename = `gif-${id}.gif`;
         const gifPath = `${dir}/${filename}`;
         const canvas = createCanvas(width, height);
@@ -189,7 +183,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         encoder.start();
         encoder.setRepeat(0);
         encoder.setDelay(100);
-        encoder.setQuality(10);
+        encoder.setQuality(10); 
 
         const imagePaths = fs.readdirSync(dir).filter(n => n.includes('png'));
         imagePaths.sort((a, b) => parseInt(a) - parseInt(b));
@@ -202,7 +196,6 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
              }
         }
         encoder.finish();
-        // ----------------------------------
 
         res.download(gifPath, filename, err => {
             if(!err) console.log(`GIF gerado com sucesso: ${id}`);
@@ -211,7 +204,6 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     } catch (error) {
         console.error('ERRO:', error.message);
-        // Se der erro, tira print
         if(browser) {
             try {
                 const p = await browser.pages();
