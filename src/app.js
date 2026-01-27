@@ -100,54 +100,19 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     }
 
     const initTime = newInitTime();
-    const uniqueDir = puppeteerDataDir(`gif_data_${id}_${Date.now()}`);
+    const uniqueDir = puppeteerDataDir(`gif_data_${id}}`);
 
-    // 1. Declarar a variável fora do try para ser acessível no finally
     let browser = null;
 
     try {
-        // 2. Adicionar o protocolTimeout e aumentar a robustez do launch
         browser = await puppeteer.launch({
             ...puppeteer_launch_props,
             userDataDir: uniqueDir,
-            protocolTimeout: 180000, // 3 minutos para evitar o erro Runtime.callFunctionOn
-            timeout: 60000 // Timeout geral do launch
+            protocolTimeout: 180000, 
+            timeout: 60000
         });
 
         const page = await browser.newPage();
-
-        await page.evaluateOnNewDocument(() => {
-            Object.defineProperty(window, 'THREE', {
-                get() { return this._THREE; },
-                set(val) {
-                    this._THREE = val;
-                    // Assim que o THREE for carregado, verificamos se falta o Handlers
-                    if (val && val.Loader && !val.Loader.Handlers) {
-                        console.log('PATCH: Detectado THREE.js novo. Recriando Loader.Handlers...');
-
-                        val.Loader.Handlers = {
-                            // Redireciona a chamada antiga para a nova função correta
-                            get: function (regex) {
-                                console.log('PATCH: Redirecionando Handlers.get para DefaultLoadingManager...');
-                                return val.DefaultLoadingManager.getHandler(regex);
-                            },
-                            add: function (regex, loader) {
-                                return val.DefaultLoadingManager.addHandler(regex, loader);
-                            }
-                        };
-                    }
-                }
-            });
-        });
-
-        // Para ver se funcionou, vamos ouvir o console do browser
-        page.on('console', msg => {
-            const text = msg.text();
-            // Filtra logs inúteis para não poluir
-            if (text.includes('PATCH') || text.includes('Error')) {
-                console.log('BROWSER LOG:', text);
-            }
-        });
 
         await page.setViewport({
             width,
@@ -155,14 +120,12 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
             deviceScaleFactor: 1,
         });
 
-        // Aumentei o timeout de navegação para garantir carregamento de assets 3D pesados
         await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
-            waitUntil: 'domcontentloaded', // Espera o DOM carregar antes de procurar o seletor
+            waitUntil: 'domcontentloaded',
             timeout: 60000
         });
 
-        // Seletor .three-loaded indica que o 3D carregou
-        await page.waitForSelector('.three-loaded', { timeout: 60000 }); // Evite timeout 0 (infinito) se possível, coloquei 60s
+        await page.waitForSelector('.three-loaded', { timeout: 60000 });
 
         await sleep(1000);
 
@@ -182,11 +145,8 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
             });
         }
 
-        // Fecha o navegador assim que acabar os prints para liberar RAM rápido
         await browser.close();
-        browser = null; // Marca como nulo para o finally não tentar fechar de novo
-
-        // ---------------------------------------- \\
+        browser = null;
 
         const filename = `gif-${id}.gif`;
         const gifPath = `${dir}/${filename}`;
@@ -200,7 +160,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         encoder.start();
         encoder.setRepeat(0);
         encoder.setDelay(100);
-        encoder.setQuality(1); // Qualidade 1 é a melhor, mas mais lenta. 10 é mais rápido.
+        encoder.setQuality(1);
 
         const imagePaths = fs.readdirSync(dir);
         const gifPaths = imagePaths.filter(name => name.includes('png'));
@@ -236,7 +196,6 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     } catch (error) {
         console.error('Erro na rota generate-gif-by-order-id:', error);
 
-        // Se der erro, tentamos limpar o diretório temporário se foi criado
         const dir = './uploads/' + id;
         if (fs.existsSync(dir)) {
             rimraf(dir, () => { });
@@ -244,8 +203,6 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
         return res.sendStatus(403)
     } finally {
-        // 3. A CORREÇÃO PRINCIPAL:
-        // Isso garante que o processo do Chrome morra mesmo se der erro no waitForSelector
         if (browser) {
             try {
                 await browser.close();
