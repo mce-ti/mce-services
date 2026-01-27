@@ -86,58 +86,139 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
 
 app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     const { id, product } = req.params;
-    // Parâmetros básicos originais
-    const width = 375;
-    const height = 667;
+    const width = parseInt(req.query?.width || '0') || 500;
+    const height = parseInt(req.query?.height || '0') || 667;
 
-    console.log('--- INICIANDO DIAGNÓSTICO ---');
+    console.log('generate-gif-by-order-id', { id, product });
 
+    const initTime = newInitTime();
+    const uniqueDir = puppeteerDataDir(`gif_data_${id}}`);
     let browser = null;
 
     try {
-        // Launch LIMPO (Sem args malucos, sem patch)
         browser = await puppeteer.launch({ 
-            ...puppeteer_launch_props,
-            headless: "new"
+            ...puppeteer_launch_props, 
+            userDataDir: uniqueDir,
+            headless: "new",
+            protocolTimeout: 180000,
+            // --- ESSES ARGUMENTOS SÃO OBRIGATÓRIOS PARA SERVIDORES SEM GPU ---
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                // Força o Chrome a usar a CPU para desenhar o 3D (SwiftShader)
+                '--use-gl=swiftshader',
+                '--enable-webgl',
+                '--ignore-gpu-blocklist', 
+                '--hide-scrollbars',
+                '--mute-audio'
+            ]
         });
 
         const page = await browser.newPage();
 
-        // 1. LIGAR O "OUVIDO" DO PUPPETEER
-        // Isso vai mostrar no seu terminal o erro exato que está dando no site
-        page.on('console', msg => console.log('SITE LOG:', msg.text()));
-        page.on('pageerror', err => console.error('SITE ERRO (FATAL):', err.toString()));
+        // --- PREVENÇÃO DE ERRO DE JAVASCRIPT ---
+        // Se o site ainda tiver o código velho do Handlers, isso conserta silenciosamente.
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(window, 'THREE', {
+                get() { return this._THREE; },
+                set(val) {
+                    this._THREE = val;
+                    if (val && val.Loader && !val.Loader.Handlers) {
+                        val.Loader.Handlers = {
+                            get: (regex) => val.DefaultLoadingManager.getHandler(regex),
+                            add: (regex, loader) => val.DefaultLoadingManager.addHandler(regex, loader)
+                        };
+                    }
+                }
+            });
+        });
 
-        await page.setViewport({ width, height });
+        // Debug para garantir
+        page.on('console', msg => {
+            const txt = msg.text();
+            if (txt.includes('Error') || txt.includes('WebGL')) console.log('BROWSER LOG:', txt);
+        });
 
-        // Adicionei um numero aleatorio no fim para garantir que não é cache
-        const url = `https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`;
-        console.log(`Navegando para: ${url}`);
+        await page.setViewport({ width, height, deviceScaleFactor: 1 });
 
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+        // Adicionei um parametro de tempo para evitar Cache
+        await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
+            waitUntil: 'networkidle0', 
+            timeout: 90000
+        });
 
-        console.log('Esperando .three-loaded...');
-        
-        // Vai falhar aqui se o JS do site estiver quebrado
-        await page.waitForSelector('.three-loaded', { timeout: 30000 });
+        console.log('Esperando o 3D carregar...');
+        // Com o SwiftShader, o loading pode demorar uns 2-3 segundos a mais, por isso o timeout seguro
+        await page.waitForSelector('.three-loaded', { timeout: 60000 });
+        console.log('SUCESSO: 3D Carregado!');
 
-        console.log('SUCESSO! O seletor apareceu.');
-        res.send('Funcionou');
+        await sleep(2000); // Pausa para renderizar o primeiro frame
 
-    } catch (error) {
-        console.error('FALHA NO PUPPETEER:', error.message);
-        
-        // Tira um print do erro para você ver
-        if (browser) {
-            const pages = await browser.pages();
-            await pages[0].screenshot({ path: 'diagnostico-erro.png' });
-            console.log('Screenshot salvo como diagnostico-erro.png');
+        const dir = './uploads/' + id;
+        !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
+
+        for (let i = 1; i < 32; i++) {
+            // Verifica segurança
+            const canRun = await page.evaluate(() => typeof window.moveCupPosition === 'function');
+            if (canRun) {
+                await page.addScriptTag({ content: `moveCupPosition(${i})` });
+            }
+            
+            // Aumentei o sleep levemente pois renderizar via CPU é mais lento que GPU
+            await sleep(150); 
+
+            await page.screenshot({
+                type: 'png',
+                path: `${dir}/${i}.png`,
+                clip: { x: 0, y: 0, width, height },
+                omitBackground: true
+            });
         }
 
-        res.status(500).json({ 
-            error: 'O Puppeteer falhou porque o site travou.', 
-            details: error.message 
+        await browser.close();
+        browser = null;
+
+        // --- SEU CÓDIGO DE GIF ORIGINAL ---
+        const filename = `gif-${id}.gif`;
+        const gifPath = `${dir}/${filename}`;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+        const encoder = new GIFEncoder(width, height);
+        encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
+        encoder.start();
+        encoder.setRepeat(0);
+        encoder.setDelay(100);
+        encoder.setQuality(10);
+
+        const imagePaths = fs.readdirSync(dir).filter(n => n.includes('png'));
+        imagePaths.sort((a, b) => parseInt(a) - parseInt(b));
+
+        for(let loop = 0; loop < 3; loop++) {
+             for(const imgPath of imagePaths) {
+                 const img = await loadImage(path.join(dir, imgPath));
+                 ctx.drawImage(img, 0, 0, width, height);
+                 encoder.addFrame(ctx);
+             }
+        }
+        encoder.finish();
+        // ----------------------------------
+
+        res.download(gifPath, filename, err => {
+            if(!err) console.log(`GIF gerado com sucesso: ${id}`);
+            rimraf(dir, () => { });
         });
+
+    } catch (error) {
+        console.error('ERRO:', error.message);
+        // Se der erro, tira print
+        if(browser) {
+            try {
+                const p = await browser.pages();
+                if(p[0]) await p[0].screenshot({ path: `erro-${id}.png` });
+            } catch(e) {}
+        }
+        res.status(500).json({ error: error.message });
     } finally {
         if (browser) await browser.close();
     }
