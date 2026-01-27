@@ -156,7 +156,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         });
 
         // Aumentei o timeout de navegação para garantir carregamento de assets 3D pesados
-        await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service`, {
+        await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
             waitUntil: 'domcontentloaded', // Espera o DOM carregar antes de procurar o seletor
             timeout: 60000
         });
