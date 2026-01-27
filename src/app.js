@@ -1,18 +1,18 @@
-const { createCanvas, loadImage } = require('canvas');
-const ffmpegPath = require('ffmpeg-static');
-const GIFEncoder = require('gifencoder');
-const ffmpeg = require('fluent-ffmpeg');
-const puppeteer = require('puppeteer');
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const cors = require('cors');
-const fs = require('fs');
-const rimraf = require('rimraf');
-const db = require('./db');
-const PedidosModel = require('./models/pedidosModel');
-const FinanceiroModel = require('./models/financeiroModel');
-const { processarJobCalco } = require('./processarJobCalco');
+const { createCanvas, loadImage }   = require('canvas');
+const ffmpegPath                    = require('ffmpeg-static');
+const GIFEncoder                    = require('gifencoder');
+const ffmpeg                        = require('fluent-ffmpeg');
+const puppeteer                     = require('puppeteer');
+const express                       = require('express');
+const multer                        = require('multer');
+const path                          = require('path');
+const cors                          = require('cors');
+const fs                            = require('fs');
+const rimraf                        = require('rimraf');
+const db                            = require('./db');
+const PedidosModel                  = require('./models/pedidosModel');
+const FinanceiroModel               = require('./models/financeiroModel');
+const { processarJobCalco }         = require('./processarJobCalco');
 
 const { puppeteer_launch_props, port } = require('./constants');
 const { newInitTime, getResultTime, sleep, isDefined, puppeteerDataDir } = require('./utils');
@@ -78,8 +78,8 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     } catch (error) {
         console.log(error)
         return res.status(403).json({
-            status: false,
-            message: "id is required"
+          status: false,
+          message: "id is required"
         })
     }
 });
@@ -92,100 +92,53 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     console.log('generate-gif-by-order-id', { id, product });
 
     const initTime = newInitTime();
-    const uniqueDir = puppeteerDataDir(`gif_data_${id}_${Date.now()}`);
+    const uniqueDir = puppeteerDataDir(`gif_data_${id}`);
     let browser = null;
 
     try {
+        // --- CONFIGURAÇÃO LIMPA (Igual Qero) ---
         browser = await puppeteer.launch({ 
             ...puppeteer_launch_props, 
             userDataDir: uniqueDir,
-            headless: "new",
-            
-            // AUMENTO CRÍTICO: Deixa o Chrome responder devagar sem o Puppeteer cancelar
-            protocolTimeout: 300000, // 5 minutos (evita o Runtime.callFunctionOn timed out)
-            timeout: 60000, // Timeout de inicialização
-
+            headless: "new", // Mude para false se quiser ver abrindo
+            protocolTimeout: 0, // Infinito (para não dar erro de protocolo)
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                
-                // --- O "PEDIDO" DO LOG DO BROWSER ---
-                // Isso autoriza o uso de CPU para WebGL sem restrições de segurança
-                '--enable-unsafe-swiftshader',
-                '--use-gl=swiftshader', // Reforça o uso do SwiftShader
-                
-                // Otimizações de Performance
-                '--disable-extensions',
-                '--disable-component-extensions-with-background-pages',
-                '--disable-default-apps',
-                '--mute-audio',
                 '--hide-scrollbars',
-                '--disable-notifications',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding'
+                '--mute-audio'
             ]
         });
 
         const page = await browser.newPage();
-
-        // Patch do JS (Mantido pois funciona)
-        await page.evaluateOnNewDocument(() => {
-            Object.defineProperty(window, 'THREE', {
-                get() { return this._THREE; },
-                set(val) {
-                    this._THREE = val;
-                    if (val && val.Loader && !val.Loader.Handlers) {
-                        val.Loader.Handlers = {
-                            get: (regex) => val.DefaultLoadingManager.getHandler(regex),
-                            add: (regex, loader) => val.DefaultLoadingManager.addHandler(regex, loader)
-                        };
-                    }
-                }
-            });
-        });
-
-        page.on('console', msg => {
-            const txt = msg.text();
-            // Filtra apenas logs importantes
-            if (txt.includes('Error') || txt.includes('WebGL') || txt.includes('GPU')) {
-                console.log('BROWSER LOG:', txt);
-            }
-        });
-
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
 
-        // --- MUDANÇA ESTRATÉGICA ---
-        // networkidle0 é muito pesado e causa timeout. 
-        // Usamos domcontentloaded que é mais rápido, pois vamos esperar o seletor .three-loaded depois de qualquer jeito.
+        // Use networkidle0 pois você consertou o site, então ele deve carregar rápido
         await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
-            waitUntil: 'domcontentloaded', 
-            timeout: 120000 // 2 minutos para carregar o HTML inicial
+            waitUntil: 'networkidle0', 
+            timeout: 60000
         });
 
-        console.log('Esperando o 3D carregar (pode demorar no SwiftShader)...');
+        await page.waitForSelector('.three-loaded', { timeout: 30000 });
         
-        // Aqui é onde o 3D carrega. Aumentei para 120s para garantir.
-        await page.waitForSelector('.three-loaded', { timeout: 120000 });
-        console.log('SUCESSO: 3D Carregado!');
-
-        await sleep(2000); 
+        // Pausa curta só para estabilizar visualmente
+        await sleep(500);
 
         const dir = './uploads/' + id;
         !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
 
-        // Loop de Captura
+        console.log(`[${id}] Iniciando screenshots...`);
+
+        // --- LOOP OTIMIZADO ---
         for (let i = 1; i < 32; i++) {
-            const canRun = await page.evaluate(() => typeof window.moveCupPosition === 'function');
-            if (canRun) {
-                await page.addScriptTag({ content: `moveCupPosition(${i})` });
-            }
-            
-            // Aumentei o sleep para 250ms. 
-            // "GPU stall due to ReadPixels" significa que o print é LENTO. 
-            // Se for rápido demais, encavala processos.
-            await sleep(250); 
+            // Executa rotação
+            await page.evaluate((index) => {
+                if (typeof window.moveCupPosition === 'function') window.moveCupPosition(index);
+            }, i);
+
+            // 50ms é muito rápido. Se o GIF piscar, aumente para 100.
+            await sleep(50); 
 
             await page.screenshot({
                 type: 'png',
@@ -193,53 +146,85 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
                 clip: { x: 0, y: 0, width, height },
                 omitBackground: true
             });
+            
+            // Log a cada 10 frames para não poluir, mas mostrar progresso
+            if (i % 10 === 0) console.log(`[${id}] Frame ${i}/31 capturado.`);
         }
 
-        await browser.close();
+        if (browser) await browser.close();
         browser = null;
 
-        // --- GERAÇÃO DO GIF (MANTIDA) ---
+        console.log(`[${id}] Iniciando geração do GIF...`);
+
         const filename = `gif-${id}.gif`;
         const gifPath = `${dir}/${filename}`;
-        const canvas = createCanvas(width, height);
-        const ctx = canvas.getContext('2d');
-        const encoder = new GIFEncoder(width, height);
         
-        encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
-        encoder.start();
-        encoder.setRepeat(0);
-        encoder.setDelay(100);
-        encoder.setQuality(10); 
+        // --- CORREÇÃO: Esperar o arquivo ser escrito no disco ---
+        await new Promise((resolve, reject) => {
+            const encoder = new GIFEncoder(width, height);
+            const stream = fs.createWriteStream(gifPath);
+            
+            // Conecta o encoder ao arquivo
+            encoder.createReadStream().pipe(stream);
+            
+            encoder.start();
+            encoder.setRepeat(0);
+            encoder.setDelay(100);
+            encoder.setQuality(20); // Qualidade rápida
 
-        const imagePaths = fs.readdirSync(dir).filter(n => n.includes('png'));
-        imagePaths.sort((a, b) => parseInt(a) - parseInt(b));
+            const canvas = createCanvas(width, height);
+            const ctx = canvas.getContext('2d');
 
-        for(let loop = 0; loop < 3; loop++) {
-             for(const imgPath of imagePaths) {
-                 const img = await loadImage(path.join(dir, imgPath));
-                 ctx.drawImage(img, 0, 0, width, height);
-                 encoder.addFrame(ctx);
-             }
-        }
-        encoder.finish();
+            const imagePaths = fs.readdirSync(dir).filter(n => n.includes('png'));
+            // Ordenação numérica crucial
+            imagePaths.sort((a, b) => parseInt(a) - parseInt(b));
 
+            // Função assíncrona para desenhar os frames
+            const processFrames = async () => {
+                try {
+                    // Loop de repetição (3x)
+                    for(let loop = 0; loop < 3; loop++) {
+                        for(const imgPath of imagePaths) {
+                            const img = await loadImage(path.join(dir, imgPath));
+                            ctx.drawImage(img, 0, 0, width, height);
+                            encoder.addFrame(ctx);
+                        }
+                    }
+                    
+                    // Finaliza o encoder
+                    encoder.finish(); 
+                    // NÃO resolvemos aqui ainda, esperamos o stream fechar abaixo
+                } catch (err) {
+                    reject(err);
+                }
+            };
+
+            // Eventos para garantir que o arquivo salvou
+            stream.on('finish', () => {
+                console.log(`[${id}] Arquivo GIF salvo no disco com sucesso.`);
+                resolve();
+            });
+            
+            stream.on('error', (err) => {
+                console.error(`[${id}] Erro ao salvar arquivo GIF:`, err);
+                reject(err);
+            });
+
+            // Começa o processamento
+            processFrames();
+        });
+        
         res.download(gifPath, filename, err => {
-            if(!err) console.log(`GIF gerado com sucesso: ${id}`);
+            if(!err) console.log(`[${id}] Download concluído com sucesso em ${getResultTime(initTime)}`);
+            else console.error(`[${id}] Erro no download:`, err);
+            
+            // Limpa a pasta temporária
             rimraf(dir, () => { });
         });
 
     } catch (error) {
-        console.error('ERRO:', error.message);
-        if(browser) {
-            try {
-                // Tenta tirar print do erro se não for erro de protocolo
-                if (!error.message.includes('Protocol')) {
-                    const p = await browser.pages();
-                    if(p[0]) await p[0].screenshot({ path: `erro-${id}.png` });
-                }
-            } catch(e) {}
-            await browser.close();
-        }
+        console.error(`ERRO FATAL [${id}]:`, error);
+        if (browser) await browser.close();
         res.status(500).json({ error: error.message });
     }
 });
@@ -275,7 +260,7 @@ app.post('/generate-gif', async (req, res) => {
         const dir = './uploads/' + initTime;
 
         !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
-
+        
         for (let i = 1; i < 32; i++) {
             await page.addScriptTag({ content: `moveCupPosition(${i})` })
 
@@ -299,7 +284,7 @@ app.post('/generate-gif', async (req, res) => {
         const ctx = canvas.getContext('2d');
 
         const encoder = new GIFEncoder(width, height);
-
+    
         encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
         encoder.start();
         encoder.setRepeat(0);
@@ -316,11 +301,11 @@ app.post('/generate-gif', async (req, res) => {
                     .forEach(async (imagePath, i) => {
                         const filePath = path.join(dir, imagePath);
                         const image = await loadImage(filePath);
-
+    
                         ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-
+    
                         encoder.addFrame(ctx);
-
+    
                         if (i === (gifPaths.length - 1) && index == 3) {
                             encoder.finish();
                             await sleep(1000);
@@ -334,14 +319,14 @@ app.post('/generate-gif', async (req, res) => {
             err
                 ? console.log(`Error downloading GIF`, { width, height, url, project }, err)
                 : console.log(`GIF downloaded successfully in ${getResultTime(initTime)}`, { width, height, url, project });
-
+    
             rimraf(dir, () => { });
         })
     } catch (error) {
         console.log(error)
         return res.sendStatus(403)
     } finally {
-        if (browser) browser.close();
+        if(browser) browser.close();
     }
 })
 
@@ -354,49 +339,49 @@ app.post('/generate-pdf', async (req, res) => {
         const reqOpts = req.body.options || {}
         const url = req.body.url
         const timeSleep = req.body?.sleep || 250
-
+    
         const filename = `pdf-${new Date().getTime()}.pdf`
         const path = `./uploads/${filename}`
-
+    
         const options = { path }
-
-        isDefined(reqOpts.displayHeaderFooter) && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
-        isDefined(reqOpts.footerTemplate) && (options['footerTemplate'] = reqOpts.footerTemplate);
-        isDefined(reqOpts.format) && (options['format'] = reqOpts.format);
-        isDefined(reqOpts.headerTemplate) && (options['headerTemplate'] = reqOpts.headerTemplate);
-        isDefined(reqOpts.height) && (options['height'] = reqOpts.height);
-        isDefined(reqOpts.landscape) && (options['landscape'] = reqOpts.landscape);
-        isDefined(reqOpts.omitBackground) && (options['omitBackground'] = reqOpts.omitBackground);
-        isDefined(reqOpts.pageRanges) && (options['pageRanges'] = reqOpts.pageRanges);
-        isDefined(reqOpts.preferCSSPageSize) && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
-        isDefined(reqOpts.printBackground) && (options['printBackground'] = reqOpts.printBackground);
-        isDefined(reqOpts.scale) && (options['scale'] = reqOpts.scale);
-        isDefined(reqOpts.timeout) && (options['timeout'] = reqOpts.timeout);
-        isDefined(reqOpts.width) && (options['width'] = reqOpts.width);
-
+    
+        isDefined(reqOpts.displayHeaderFooter)  && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
+        isDefined(reqOpts.footerTemplate)       && (options['footerTemplate'] = reqOpts.footerTemplate);
+        isDefined(reqOpts.format)               && (options['format'] = reqOpts.format);
+        isDefined(reqOpts.headerTemplate)       && (options['headerTemplate'] = reqOpts.headerTemplate);
+        isDefined(reqOpts.height)               && (options['height'] = reqOpts.height);
+        isDefined(reqOpts.landscape)            && (options['landscape'] = reqOpts.landscape);
+        isDefined(reqOpts.omitBackground)       && (options['omitBackground'] = reqOpts.omitBackground);
+        isDefined(reqOpts.pageRanges)           && (options['pageRanges'] = reqOpts.pageRanges);
+        isDefined(reqOpts.preferCSSPageSize)    && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
+        isDefined(reqOpts.printBackground)      && (options['printBackground'] = reqOpts.printBackground);
+        isDefined(reqOpts.scale)                && (options['scale'] = reqOpts.scale);
+        isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
+        isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
+    
         browser = await puppeteer.launch({ ...puppeteer_launch_props });
-
+        
         const page = await browser.newPage();
-
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 15000 });
-
+        
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 15000});
+        
         await sleep(timeSleep);
-
+    
         await page.pdf(options);
-
+    
         await browser.close();
-
+    
         return res.download(path, filename, err => {
             const log = err ? ['Error downloading PDF', req.body, err] : [`PDF (${url}) Downloaded successfully in ${getResultTime(initTime)}`];
-
+    
             console.log(...log);
-
+    
             fs.unlink(path, _unlinkErr => { });
         })
     } catch (error) {
         return res.sendStatus(403)
     } finally {
-        if (browser) browser.close();
+        if(browser) browser.close();
     }
 });
 
@@ -424,7 +409,7 @@ app.post('/logFinanceiro', async (req, res) => {
         await logFinanceiro.save();
         res.status(201).json(logFinanceiro);
 
-        if (id_pedido) {
+        if(id_pedido) {
             console.log('LOG: Registro alterado no Financeiro - Pedido #' + id_pedido + '.');
         } else {
             console.log('LOG: Registro alterado no Financeiro - Registro com ID #' + id + '.');
@@ -455,7 +440,7 @@ app.post('/api/gerar-calco', async (req, res) => {
             webhook_url,
             modo_render: modo_render || 'translucido_branco'
         };
-
+        
         processarJobCalco(payload)
             .then(() => console.log(`Sucesso no processamento direto: ${id_arte}`))
             .catch(err => console.error(`Erro no processamento direto ${id_arte}:`, err));
