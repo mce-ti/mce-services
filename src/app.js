@@ -86,131 +86,60 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
 
 app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     const { id, product } = req.params;
+    // Parâmetros básicos originais
+    const width = 375;
+    const height = 667;
 
-    const width = parseInt(req.query?.width || '0') || 375;
-    const height = parseInt(req.query?.height || '0') || 667;
-
-    console.log('generate-gif-by-order-id', { id, product, width, height });
-
-    if (!id || !product) {
-        return res.status(403).json({
-            status: false,
-            message: "id is required"
-        });
-    }
-
-    const initTime = newInitTime();
-    const uniqueDir = puppeteerDataDir(`gif_data_${id}}`);
+    console.log('--- INICIANDO DIAGNÓSTICO ---');
 
     let browser = null;
 
     try {
-        browser = await puppeteer.launch({
+        // Launch LIMPO (Sem args malucos, sem patch)
+        browser = await puppeteer.launch({ 
             ...puppeteer_launch_props,
-            userDataDir: uniqueDir,
-            protocolTimeout: 180000, 
-            timeout: 60000
+            headless: "new"
         });
 
         const page = await browser.newPage();
 
-        await page.setViewport({
-            width,
-            height,
-            deviceScaleFactor: 1,
-        });
+        // 1. LIGAR O "OUVIDO" DO PUPPETEER
+        // Isso vai mostrar no seu terminal o erro exato que está dando no site
+        page.on('console', msg => console.log('SITE LOG:', msg.text()));
+        page.on('pageerror', err => console.error('SITE ERRO (FATAL):', err.toString()));
 
-        await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
-            waitUntil: 'domcontentloaded',
-            timeout: 60000
-        });
+        await page.setViewport({ width, height });
 
-        await page.waitForSelector('.three-loaded', { timeout: 60000 });
+        // Adicionei um numero aleatorio no fim para garantir que não é cache
+        const url = `https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`;
+        console.log(`Navegando para: ${url}`);
 
-        await sleep(1000);
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
 
-        const dir = './uploads/' + id;
+        console.log('Esperando .three-loaded...');
+        
+        // Vai falhar aqui se o JS do site estiver quebrado
+        await page.waitForSelector('.three-loaded', { timeout: 30000 });
 
-        !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
+        console.log('SUCESSO! O seletor apareceu.');
+        res.send('Funcionou');
 
-        for (let i = 1; i < 32; i++) {
-            await page.addScriptTag({ content: `moveCupPosition(${i})` })
-
-            await sleep(100);
-
-            await page.screenshot({
-                type: 'png',
-                path: `${dir}/${i}.png`,
-                clip: { x: 0, y: 0, width, height }
-            });
-        }
-
-        await browser.close();
-        browser = null;
-
-        const filename = `gif-${id}.gif`;
-        const gifPath = `${dir}/${filename}`;
-
-        const canvas = createCanvas(width, height);
-        const ctx = canvas.getContext('2d');
-
-        const encoder = new GIFEncoder(width, height);
-
-        encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
-        encoder.start();
-        encoder.setRepeat(0);
-        encoder.setDelay(100);
-        encoder.setQuality(1);
-
-        const imagePaths = fs.readdirSync(dir);
-        const gifPaths = imagePaths.filter(name => name.includes('png'));
-
-        await (() => new Promise(resolve => {
-            for (let index = 1; index <= 3; index++) {
-                gifPaths
-                    .sort((a, b) => parseInt(a) - parseInt(b))
-                    .forEach(async (imagePath, i) => {
-                        const filePath = path.join(dir, imagePath);
-                        const image = await loadImage(filePath);
-
-                        ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-
-                        encoder.addFrame(ctx);
-
-                        if (i === (gifPaths.length - 1) && index == 3) {
-                            encoder.finish();
-                            await sleep(1000);
-                            resolve(true);
-                        }
-                    })
-            }
-        }))()
-
-        res.download(gifPath, filename, err => {
-            err
-                ? console.log(`Error downloading GIF ${id}-${product}`, err)
-                : console.log(`GIF ${id}-${product} downloaded successfully in ${getResultTime(initTime)}`);
-
-            rimraf(dir, () => { });
-        })
     } catch (error) {
-        console.error('Erro na rota generate-gif-by-order-id:', error);
-
-        const dir = './uploads/' + id;
-        if (fs.existsSync(dir)) {
-            rimraf(dir, () => { });
-        }
-
-        return res.sendStatus(403)
-    } finally {
+        console.error('FALHA NO PUPPETEER:', error.message);
+        
+        // Tira um print do erro para você ver
         if (browser) {
-            try {
-                await browser.close();
-                console.log('Browser fechado via finally.');
-            } catch (closeError) {
-                console.error('Erro ao fechar navegador no finally:', closeError);
-            }
+            const pages = await browser.pages();
+            await pages[0].screenshot({ path: 'diagnostico-erro.png' });
+            console.log('Screenshot salvo como diagnostico-erro.png');
         }
+
+        res.status(500).json({ 
+            error: 'O Puppeteer falhou porque o site travou.', 
+            details: error.message 
+        });
+    } finally {
+        if (browser) await browser.close();
     }
 });
 
