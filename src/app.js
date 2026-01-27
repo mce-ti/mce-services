@@ -114,11 +114,15 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         const page = await browser.newPage();
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
 
+        console.log('Abrindo página do 3D...');
+
         // Use networkidle0 pois você consertou o site, então ele deve carregar rápido
         await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
-            waitUntil: 'networkidle0', 
+            waitUntil: 'domcontentloaded', 
             timeout: 60000
         });
+
+        console.log('Página aberta!');
 
         await page.waitForSelector('.three-loaded', { timeout: 30000 });
         
