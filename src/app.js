@@ -279,9 +279,8 @@ app.post('/generate-gif', async (req, res) => {
         
         console.log(`[${project}] Navegando...`);
 
-        // Qero geralmente carrega bem com networkidle0, mas domcontentloaded é mais seguro contra timeouts
         await page.goto(url, { 
-            waitUntil: 'networkidle0', 
+            waitUntil: 'domcontentloaded', 
             timeout: 90000 
         });
 
