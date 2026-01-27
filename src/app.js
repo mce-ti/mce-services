@@ -92,37 +92,51 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
     console.log('generate-gif-by-order-id', { id, product });
 
     const initTime = newInitTime();
-    // Corrigi um pequeno erro de digitação no seu código anterior (tinha duas chaves }})
     const uniqueDir = puppeteerDataDir(`gif_data_${id}_${Date.now()}`);
     let browser = null;
 
     try {
-        // 1. LAUNCH "LEVE" (IGUAL AO DA QERO ECOVASOS)
-        // Removemos os argumentos de SwiftShader que estavam causando o crash (SIGTERM)
         browser = await puppeteer.launch({ 
             ...puppeteer_launch_props, 
             userDataDir: uniqueDir,
             headless: "new",
-            protocolTimeout: 180000, 
+            
+            // AUMENTO CRÍTICO: Deixa o Chrome responder devagar sem o Puppeteer cancelar
+            protocolTimeout: 300000, // 5 minutos (evita o Runtime.callFunctionOn timed out)
+            timeout: 60000, // Timeout de inicialização
+
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                // Removemos --use-gl=swiftshader e outros que pesam na CPU
+                
+                // --- O "PEDIDO" DO LOG DO BROWSER ---
+                // Isso autoriza o uso de CPU para WebGL sem restrições de segurança
+                '--enable-unsafe-swiftshader',
+                '--use-gl=swiftshader', // Reforça o uso do SwiftShader
+                
+                // Otimizações de Performance
+                '--disable-extensions',
+                '--disable-component-extensions-with-background-pages',
+                '--disable-default-apps',
+                '--mute-audio',
+                '--hide-scrollbars',
+                '--disable-notifications',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
             ]
         });
 
         const page = await browser.newPage();
 
-        // 2. O "CURATIVO" (ESSENCIAL PARA O MEU COPO ECO)
-        // Mantemos isso pois é o que conserta o erro "Handlers.get has been removed"
+        // Patch do JS (Mantido pois funciona)
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(window, 'THREE', {
                 get() { return this._THREE; },
                 set(val) {
                     this._THREE = val;
                     if (val && val.Loader && !val.Loader.Handlers) {
-                        // Recria a função antiga que o site busca
                         val.Loader.Handlers = {
                             get: (regex) => val.DefaultLoadingManager.getHandler(regex),
                             add: (regex, loader) => val.DefaultLoadingManager.addHandler(regex, loader)
@@ -132,35 +146,46 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
             });
         });
 
-        // Debug simples
         page.on('console', msg => {
             const txt = msg.text();
-            if (txt.includes('Error') || txt.includes('WebGL')) console.log('BROWSER LOG:', txt);
+            // Filtra apenas logs importantes
+            if (txt.includes('Error') || txt.includes('WebGL') || txt.includes('GPU')) {
+                console.log('BROWSER LOG:', txt);
+            }
         });
 
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
 
-        // Navegação com timestamp para evitar cache
+        // --- MUDANÇA ESTRATÉGICA ---
+        // networkidle0 é muito pesado e causa timeout. 
+        // Usamos domcontentloaded que é mais rápido, pois vamos esperar o seletor .three-loaded depois de qualquer jeito.
         await page.goto(`https://www.meucopoeco.com.br/site/customizer/${id}/${product}?origem=gif-service&t=${Date.now()}`, {
-            waitUntil: 'networkidle0', 
-            timeout: 90000
+            waitUntil: 'domcontentloaded', 
+            timeout: 120000 // 2 minutos para carregar o HTML inicial
         });
 
-        await page.waitForSelector('.three-loaded', { timeout: 60000 });
+        console.log('Esperando o 3D carregar (pode demorar no SwiftShader)...');
+        
+        // Aqui é onde o 3D carrega. Aumentei para 120s para garantir.
+        await page.waitForSelector('.three-loaded', { timeout: 120000 });
+        console.log('SUCESSO: 3D Carregado!');
 
         await sleep(2000); 
 
         const dir = './uploads/' + id;
         !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
 
-        // Loop de capturas
+        // Loop de Captura
         for (let i = 1; i < 32; i++) {
             const canRun = await page.evaluate(() => typeof window.moveCupPosition === 'function');
             if (canRun) {
                 await page.addScriptTag({ content: `moveCupPosition(${i})` });
             }
             
-            await sleep(150); 
+            // Aumentei o sleep para 250ms. 
+            // "GPU stall due to ReadPixels" significa que o print é LENTO. 
+            // Se for rápido demais, encavala processos.
+            await sleep(250); 
 
             await page.screenshot({
                 type: 'png',
@@ -173,12 +198,13 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         await browser.close();
         browser = null;
 
-        // --- GERAÇÃO DO GIF ---
+        // --- GERAÇÃO DO GIF (MANTIDA) ---
         const filename = `gif-${id}.gif`;
         const gifPath = `${dir}/${filename}`;
         const canvas = createCanvas(width, height);
         const ctx = canvas.getContext('2d');
         const encoder = new GIFEncoder(width, height);
+        
         encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
         encoder.start();
         encoder.setRepeat(0);
@@ -206,13 +232,15 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         console.error('ERRO:', error.message);
         if(browser) {
             try {
-                const p = await browser.pages();
-                if(p[0]) await p[0].screenshot({ path: `erro-${id}.png` });
+                // Tenta tirar print do erro se não for erro de protocolo
+                if (!error.message.includes('Protocol')) {
+                    const p = await browser.pages();
+                    if(p[0]) await p[0].screenshot({ path: `erro-${id}.png` });
+                }
             } catch(e) {}
+            await browser.close();
         }
         res.status(500).json({ error: error.message });
-    } finally {
-        if (browser) await browser.close();
     }
 });
 
