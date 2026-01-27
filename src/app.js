@@ -1,18 +1,18 @@
-const { createCanvas, loadImage }   = require('canvas');
-const ffmpegPath                    = require('ffmpeg-static');
-const GIFEncoder                    = require('gifencoder');
-const ffmpeg                        = require('fluent-ffmpeg');
-const puppeteer                     = require('puppeteer');
-const express                       = require('express');
-const multer                        = require('multer');
-const path                          = require('path');
-const cors                          = require('cors');
-const fs                            = require('fs');
-const rimraf                        = require('rimraf');
-const db                            = require('./db');
-const PedidosModel                  = require('./models/pedidosModel');
-const FinanceiroModel               = require('./models/financeiroModel');
-const { processarJobCalco }         = require('./processarJobCalco');
+const { createCanvas, loadImage } = require('canvas');
+const ffmpegPath = require('ffmpeg-static');
+const GIFEncoder = require('gifencoder');
+const ffmpeg = require('fluent-ffmpeg');
+const puppeteer = require('puppeteer');
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const cors = require('cors');
+const fs = require('fs');
+const rimraf = require('rimraf');
+const db = require('./db');
+const PedidosModel = require('./models/pedidosModel');
+const FinanceiroModel = require('./models/financeiroModel');
+const { processarJobCalco } = require('./processarJobCalco');
 
 const { puppeteer_launch_props, port } = require('./constants');
 const { newInitTime, getResultTime, sleep, isDefined, puppeteerDataDir } = require('./utils');
@@ -78,8 +78,8 @@ app.post('/convert-gif-to-mp4', upload.single('gif'), async (req, res) => {
     } catch (error) {
         console.log(error)
         return res.status(403).json({
-          status: false,
-          message: "id is required"
+            status: false,
+            message: "id is required"
         })
     }
 });
@@ -107,14 +107,47 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
 
     try {
         // 2. Adicionar o protocolTimeout e aumentar a robustez do launch
-        browser = await puppeteer.launch({ 
-            ...puppeteer_launch_props, 
+        browser = await puppeteer.launch({
+            ...puppeteer_launch_props,
             userDataDir: uniqueDir,
             protocolTimeout: 180000, // 3 minutos para evitar o erro Runtime.callFunctionOn
             timeout: 60000 // Timeout geral do launch
         });
 
         const page = await browser.newPage();
+
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(window, 'THREE', {
+                get() { return this._THREE; },
+                set(val) {
+                    this._THREE = val;
+                    // Assim que o THREE for carregado, verificamos se falta o Handlers
+                    if (val && val.Loader && !val.Loader.Handlers) {
+                        console.log('PATCH: Detectado THREE.js novo. Recriando Loader.Handlers...');
+
+                        val.Loader.Handlers = {
+                            // Redireciona a chamada antiga para a nova função correta
+                            get: function (regex) {
+                                console.log('PATCH: Redirecionando Handlers.get para DefaultLoadingManager...');
+                                return val.DefaultLoadingManager.getHandler(regex);
+                            },
+                            add: function (regex, loader) {
+                                return val.DefaultLoadingManager.addHandler(regex, loader);
+                            }
+                        };
+                    }
+                }
+            });
+        });
+
+        // Para ver se funcionou, vamos ouvir o console do browser
+        page.on('console', msg => {
+            const text = msg.text();
+            // Filtra logs inúteis para não poluir
+            if (text.includes('PATCH') || text.includes('Error')) {
+                console.log('BROWSER LOG:', text);
+            }
+        });
 
         await page.setViewport({
             width,
@@ -152,26 +185,26 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         // Fecha o navegador assim que acabar os prints para liberar RAM rápido
         await browser.close();
         browser = null; // Marca como nulo para o finally não tentar fechar de novo
-        
+
         // ---------------------------------------- \\
-    
+
         const filename = `gif-${id}.gif`;
         const gifPath = `${dir}/${filename}`;
-    
+
         const canvas = createCanvas(width, height);
         const ctx = canvas.getContext('2d');
-    
+
         const encoder = new GIFEncoder(width, height);
-    
+
         encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
         encoder.start();
         encoder.setRepeat(0);
         encoder.setDelay(100);
         encoder.setQuality(1); // Qualidade 1 é a melhor, mas mais lenta. 10 é mais rápido.
-    
+
         const imagePaths = fs.readdirSync(dir);
         const gifPaths = imagePaths.filter(name => name.includes('png'));
-    
+
         await (() => new Promise(resolve => {
             for (let index = 1; index <= 3; index++) {
                 gifPaths
@@ -179,11 +212,11 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
                     .forEach(async (imagePath, i) => {
                         const filePath = path.join(dir, imagePath);
                         const image = await loadImage(filePath);
-    
+
                         ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-    
+
                         encoder.addFrame(ctx);
-    
+
                         if (i === (gifPaths.length - 1) && index == 3) {
                             encoder.finish();
                             await sleep(1000);
@@ -192,21 +225,21 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
                     })
             }
         }))()
-    
+
         res.download(gifPath, filename, err => {
             err
                 ? console.log(`Error downloading GIF ${id}-${product}`, err)
                 : console.log(`GIF ${id}-${product} downloaded successfully in ${getResultTime(initTime)}`);
-    
+
             rimraf(dir, () => { });
         })
     } catch (error) {
         console.error('Erro na rota generate-gif-by-order-id:', error);
-        
+
         // Se der erro, tentamos limpar o diretório temporário se foi criado
         const dir = './uploads/' + id;
         if (fs.existsSync(dir)) {
-             rimraf(dir, () => { });
+            rimraf(dir, () => { });
         }
 
         return res.sendStatus(403)
@@ -255,7 +288,7 @@ app.post('/generate-gif', async (req, res) => {
         const dir = './uploads/' + initTime;
 
         !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true });
-        
+
         for (let i = 1; i < 32; i++) {
             await page.addScriptTag({ content: `moveCupPosition(${i})` })
 
@@ -279,7 +312,7 @@ app.post('/generate-gif', async (req, res) => {
         const ctx = canvas.getContext('2d');
 
         const encoder = new GIFEncoder(width, height);
-    
+
         encoder.createReadStream().pipe(fs.createWriteStream(gifPath));
         encoder.start();
         encoder.setRepeat(0);
@@ -296,11 +329,11 @@ app.post('/generate-gif', async (req, res) => {
                     .forEach(async (imagePath, i) => {
                         const filePath = path.join(dir, imagePath);
                         const image = await loadImage(filePath);
-    
+
                         ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-    
+
                         encoder.addFrame(ctx);
-    
+
                         if (i === (gifPaths.length - 1) && index == 3) {
                             encoder.finish();
                             await sleep(1000);
@@ -314,14 +347,14 @@ app.post('/generate-gif', async (req, res) => {
             err
                 ? console.log(`Error downloading GIF`, { width, height, url, project }, err)
                 : console.log(`GIF downloaded successfully in ${getResultTime(initTime)}`, { width, height, url, project });
-    
+
             rimraf(dir, () => { });
         })
     } catch (error) {
         console.log(error)
         return res.sendStatus(403)
     } finally {
-        if(browser) browser.close();
+        if (browser) browser.close();
     }
 })
 
@@ -334,49 +367,49 @@ app.post('/generate-pdf', async (req, res) => {
         const reqOpts = req.body.options || {}
         const url = req.body.url
         const timeSleep = req.body?.sleep || 250
-    
+
         const filename = `pdf-${new Date().getTime()}.pdf`
         const path = `./uploads/${filename}`
-    
+
         const options = { path }
-    
-        isDefined(reqOpts.displayHeaderFooter)  && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
-        isDefined(reqOpts.footerTemplate)       && (options['footerTemplate'] = reqOpts.footerTemplate);
-        isDefined(reqOpts.format)               && (options['format'] = reqOpts.format);
-        isDefined(reqOpts.headerTemplate)       && (options['headerTemplate'] = reqOpts.headerTemplate);
-        isDefined(reqOpts.height)               && (options['height'] = reqOpts.height);
-        isDefined(reqOpts.landscape)            && (options['landscape'] = reqOpts.landscape);
-        isDefined(reqOpts.omitBackground)       && (options['omitBackground'] = reqOpts.omitBackground);
-        isDefined(reqOpts.pageRanges)           && (options['pageRanges'] = reqOpts.pageRanges);
-        isDefined(reqOpts.preferCSSPageSize)    && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
-        isDefined(reqOpts.printBackground)      && (options['printBackground'] = reqOpts.printBackground);
-        isDefined(reqOpts.scale)                && (options['scale'] = reqOpts.scale);
-        isDefined(reqOpts.timeout)              && (options['timeout'] = reqOpts.timeout);
-        isDefined(reqOpts.width)                && (options['width'] = reqOpts.width);
-    
+
+        isDefined(reqOpts.displayHeaderFooter) && (options['displayHeaderFooter'] = reqOpts.displayHeaderFooter);
+        isDefined(reqOpts.footerTemplate) && (options['footerTemplate'] = reqOpts.footerTemplate);
+        isDefined(reqOpts.format) && (options['format'] = reqOpts.format);
+        isDefined(reqOpts.headerTemplate) && (options['headerTemplate'] = reqOpts.headerTemplate);
+        isDefined(reqOpts.height) && (options['height'] = reqOpts.height);
+        isDefined(reqOpts.landscape) && (options['landscape'] = reqOpts.landscape);
+        isDefined(reqOpts.omitBackground) && (options['omitBackground'] = reqOpts.omitBackground);
+        isDefined(reqOpts.pageRanges) && (options['pageRanges'] = reqOpts.pageRanges);
+        isDefined(reqOpts.preferCSSPageSize) && (options['preferCSSPageSize'] = reqOpts.preferCSSPageSize);
+        isDefined(reqOpts.printBackground) && (options['printBackground'] = reqOpts.printBackground);
+        isDefined(reqOpts.scale) && (options['scale'] = reqOpts.scale);
+        isDefined(reqOpts.timeout) && (options['timeout'] = reqOpts.timeout);
+        isDefined(reqOpts.width) && (options['width'] = reqOpts.width);
+
         browser = await puppeteer.launch({ ...puppeteer_launch_props });
-        
+
         const page = await browser.newPage();
-        
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 15000});
-        
+
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 15000 });
+
         await sleep(timeSleep);
-    
+
         await page.pdf(options);
-    
+
         await browser.close();
-    
+
         return res.download(path, filename, err => {
             const log = err ? ['Error downloading PDF', req.body, err] : [`PDF (${url}) Downloaded successfully in ${getResultTime(initTime)}`];
-    
+
             console.log(...log);
-    
+
             fs.unlink(path, _unlinkErr => { });
         })
     } catch (error) {
         return res.sendStatus(403)
     } finally {
-        if(browser) browser.close();
+        if (browser) browser.close();
     }
 });
 
@@ -404,7 +437,7 @@ app.post('/logFinanceiro', async (req, res) => {
         await logFinanceiro.save();
         res.status(201).json(logFinanceiro);
 
-        if(id_pedido) {
+        if (id_pedido) {
             console.log('LOG: Registro alterado no Financeiro - Pedido #' + id_pedido + '.');
         } else {
             console.log('LOG: Registro alterado no Financeiro - Registro com ID #' + id + '.');
@@ -435,7 +468,7 @@ app.post('/api/gerar-calco', async (req, res) => {
             webhook_url,
             modo_render: modo_render || 'translucido_branco'
         };
-        
+
         processarJobCalco(payload)
             .then(() => console.log(`Sucesso no processamento direto: ${id_arte}`))
             .catch(err => console.error(`Erro no processamento direto ${id_arte}:`, err));
