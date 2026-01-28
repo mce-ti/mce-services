@@ -15,11 +15,7 @@ const processarJobCalco = async (data) => {
             ...puppeteer_launch_props,
             args: [
                 ...(puppeteer_launch_props.args || []),
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--single-process',        // Economiza memória
-                '--no-zygote'
+                '--disable-gpu'
             ]
         });
 
@@ -86,11 +82,6 @@ const processarJobCalco = async (data) => {
             case 'translucido_colorido':
                 cssBackground = 'background-color: #FFFFFF !important; background-image: none !important;';
                 omitBackground = false; 
-                break;
-            case 'translucido_branco':
-            default:
-                cssBackground = 'background-color: transparent !important; background-image: none !important;';
-                omitBackground = true; 
                 break;
         }
 

@@ -100,15 +100,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
         browser = await puppeteer.launch({ 
             ...puppeteer_launch_props, 
             userDataDir: uniqueDir,
-            headless: "new", // Mude para false se quiser ver abrindo
-            protocolTimeout: 0, // Infinito (para não dar erro de protocolo)
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--hide-scrollbars',
-                '--mute-audio'
-            ]
+            protocolTimeout: 0,
         });
 
         const page = await browser.newPage();
@@ -259,15 +251,7 @@ app.post('/generate-gif', async (req, res) => {
         browser = await puppeteer.launch({ 
             ...puppeteer_launch_props, 
             userDataDir: uniqueDir,
-            headless: "new",
-            protocolTimeout: 0, // Infinito para evitar timeout de protocolo em processos longos
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--hide-scrollbars',
-                '--mute-audio'
-            ]
+            protocolTimeout: 0,
         });
 
         const page = await browser.newPage();
@@ -518,7 +502,7 @@ app.post('/api/gerar-calco', async (req, res) => {
         // Responde imediatamente
         return res.json({
             status: true,
-            message: 'Processamento iniciado imediatamente (sem fila)'
+            message: 'Processamento iniciado imediatamente'
         });
 
     } catch (error) {
