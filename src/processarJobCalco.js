@@ -72,16 +72,13 @@ const processarJobCalco = async (data) => {
         // 3. CONFIGURAÇÃO DO FUNDO
         // -----------------------------------------------------------
         let cssBackground = '';
-        let omitBackground = true;
 
         switch (modo_render) {
             case 'opaco':
                 cssBackground = 'background-color: #000000 !important; background-image: none !important;';
-                omitBackground = false; 
                 break;
             case 'translucido_colorido':
                 cssBackground = 'background-color: #FFFFFF !important; background-image: none !important;';
-                omitBackground = false; 
                 break;
         }
 
@@ -123,8 +120,9 @@ const processarJobCalco = async (data) => {
         if (!element) throw new Error(`Elemento ${selector} não encontrado!`);
 
         const imageBuffer = await element.screenshot({
-            omitBackground: omitBackground,
-            type: 'png'
+            omitBackground: false,
+            type: 'jpeg',
+            quality: 80,
         });
 
         console.log(`[Gerar Calço] Imagem gerada com sucesso para Arte ${id_arte}.`);
