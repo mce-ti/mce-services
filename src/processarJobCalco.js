@@ -20,12 +20,12 @@ const processarJobCalco = async (data) => {
         });
 
         const page = await browser.newPage();
-        
+
         // Timeout aumentado para segurança
         page.setDefaultNavigationTimeout(60000);
 
         await page.setViewport({ width: 2500, height: 2500, deviceScaleFactor: 2 });
-        
+
         await page.goto(url_arte, { waitUntil: 'networkidle0', timeout: 60000 });
 
         // -----------------------------------------------------------
@@ -113,7 +113,7 @@ const processarJobCalco = async (data) => {
         // Pausa leve para garantir renderização CSS
         await new Promise(r => setTimeout(r, 1000));
 
-        const selector = '.template'; 
+        const selector = '.template';
         await page.waitForSelector(selector, { timeout: 10000 });
         const element = await page.$(selector);
 
@@ -128,14 +128,35 @@ const processarJobCalco = async (data) => {
         console.log(`[Gerar Calço] Imagem gerada com sucesso para Arte ${id_arte}.`);
 
         if (webhook_url) {
-            console.log(`[Gerar Calço] Enviando webhook...`);
-            await axios.post(webhook_url, {
-                id_arte: id_arte,
-                id_pedido: id_pedido,
-                index: index,
-                imagem: imageBuffer.toString('base64'),
-            });
-            console.log(`[Gerar Calço] Webhook enviado.`);
+            console.log(`[Gerar Calço] Enviando webhook para: ${webhook_url}`);
+
+            try {
+                const response = await axios.post(webhook_url, {
+                    id_arte: id_arte,
+                    id_pedido: id_pedido,
+                    index: index,
+                    imagem: imageBuffer.toString('base64'),
+                }, {
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity
+                });
+
+                console.log(`[Gerar Calço] SUCESSO! Status: ${response.status}`);
+                console.log(`[Gerar Calço] Resposta do PHP:`, JSON.stringify(response.data));
+
+            } catch (axiosError) {
+                if (axiosError.response) {
+                    console.error(`[Gerar Calço] ERRO NO SERVIDOR (PHP):`);
+                    console.error(`Status Code: ${axiosError.response.status}`);
+                    console.error(`Dados da Resposta:`, axiosError.response.data);
+                    console.error(`Headers:`, axiosError.response.headers);
+                } else if (axiosError.request) {
+                    console.error(`[Gerar Calço] ERRO DE REDE: Sem resposta do servidor.`);
+                    console.error(axiosError.request);
+                } else {
+                    console.error(`[Gerar Calço] ERRO DE CONFIGURAÇÃO AXIOS:`, axiosError.message);
+                }
+            }
         }
 
     } catch (error) {
