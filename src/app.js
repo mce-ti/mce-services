@@ -491,7 +491,7 @@ app.post('/logFinanceiro', async (req, res) => {
 
 app.post('/api/gerar-calco', async (req, res) => {
     try {
-        const { url_arte, id_pedido, index, id_arte, webhook_url, modo_render } = req.body;
+        const { url_arte, id_pedido, index, id_pedido_produto, id_arte, webhook_url, modo_render } = req.body;
 
         if (!id_arte || !url_arte) {
             return res.status(400).json({
@@ -507,6 +507,7 @@ app.post('/api/gerar-calco', async (req, res) => {
             id_arte,
             id_pedido,
             index,
+            id_pedido_produto,
             webhook_url,
             modo_render: modo_render || 'translucido_branco'
         };

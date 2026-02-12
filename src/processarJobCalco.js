@@ -4,7 +4,7 @@ const { puppeteer_launch_props } = require('./constants');
 
 const processarJobCalco = async (data) => {
 
-    const { url_arte, id_arte, id_pedido, index, webhook_url, modo_render } = data;
+    const { url_arte, id_arte, id_pedido, index, id_pedido_produto, webhook_url, modo_render } = data;
 
     console.log(`[Gerar Calço] Iniciando processamento: Arte ${id_arte} | Pedido ${id_pedido}`);
 
@@ -135,6 +135,7 @@ const processarJobCalco = async (data) => {
                     id_arte: id_arte,
                     id_pedido: id_pedido,
                     index: index,
+                    id_pedido_produto: id_pedido_produto,
                     imagem: imageBuffer.toString('base64'),
                 }, {
                     maxBodyLength: Infinity,
