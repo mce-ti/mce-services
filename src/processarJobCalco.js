@@ -49,8 +49,7 @@ const processarJobCalco = async (data) => {
                 .template #medidor img {
                     display: block !important;
                     background: transparent !important;
-                    filter: brightness(0) invert(1) drop-shadow(0 0 0 white) drop-shadow(0 0 0 white) drop-shadow(0 0 0 white) !important;
-                    -webkit-filter: brightness(0) invert(1) drop-shadow(0 0 0 white) drop-shadow(0 0 0 white) drop-shadow(0 0 0 white) !important;
+                    filter: grayscale(1) contrast(150%) brightness(1.1);
                     opacity: 1 !important;
                     mix-blend-mode: normal !important;
                 }
