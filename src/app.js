@@ -174,7 +174,7 @@ app.get('/generate-gif-by-order-id/:id/:product', async (req, res) => {
             encoder.start();
             encoder.setRepeat(0);
             encoder.setDelay(100);
-            encoder.setQuality(10); // Qualidade rápida
+            encoder.setQuality(1); // Qualidade rápida
 
             const canvas = createCanvas(width, height);
             const ctx = canvas.getContext('2d');
@@ -346,7 +346,7 @@ app.post('/generate-gif', async (req, res) => {
             encoder.start();
             encoder.setRepeat(0);
             encoder.setDelay(100);
-            encoder.setQuality(10); // Qualidade 20 (Rápida e boa)
+            encoder.setQuality(1); // Qualidade 20 (Rápida e boa)
 
             const imagePaths = fs.readdirSync(dir).filter(name => name.includes('png'));
             imagePaths.sort((a, b) => parseInt(a) - parseInt(b));
